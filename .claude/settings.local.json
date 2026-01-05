@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(git -C \"C:\\\\Users\\\\vorar\\\\OneDrive\\\\เอกสาร2\\\\GitHub\\\\ai-stock-analysis\" status)",
-      "Bash(git -C \"C:\\\\Users\\\\vorar\\\\OneDrive\\\\เอกสาร2\\\\GitHub\\\\ai-stock-analysis\" log --oneline -10)"
+      "Bash(git -C \"C:\\\\Users\\\\vorar\\\\OneDrive\\\\เอกสาร2\\\\GitHub\\\\ai-stock-analysis\" log --oneline -10)",
+      "Bash(git add:*)",
+      "Bash(dir:*)",
+      "Bash(git push:*)"
     ]
   }
 }
