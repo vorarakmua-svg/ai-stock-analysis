@@ -1,12 +1,24 @@
+# ValueInvestAI Backend Dependencies
+# Python 3.11+ required
+
+# Web Framework
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
+
+# Database
 sqlalchemy==2.0.25
 asyncpg==0.29.0
 alembic==1.13.1
+
+# Data Validation
 pydantic==2.5.3
 pydantic-settings==2.1.0
+
+# Data Processing
 pandas==2.2.0
-numpy==1.26.3
+
+# Configuration
 python-dotenv==1.0.0
-redis==5.0.1
+
+# HTTP Client
 httpx==0.26.0

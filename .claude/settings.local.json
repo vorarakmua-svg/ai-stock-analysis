@@ -5,7 +5,14 @@
       "Bash(git -C \"C:\\\\Users\\\\vorar\\\\OneDrive\\\\เอกสาร2\\\\GitHub\\\\ai-stock-analysis\" log --oneline -10)",
       "Bash(git add:*)",
       "Bash(dir:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(mkdir:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker info:*)",
+      "Bash(git -C \"C:\\\\Users\\\\vorar\\\\OneDrive\\\\เอกสาร2\\\\GitHub\\\\ai-stock-analysis\" diff --stat HEAD)",
+      "Bash(git -C \"C:\\\\Users\\\\vorar\\\\OneDrive\\\\เอกสาร2\\\\GitHub\\\\ai-stock-analysis\" log --oneline -5)",
+      "Bash(curl:*)",
+      "Bash(docker-compose exec:*)"
     ]
   }
 }

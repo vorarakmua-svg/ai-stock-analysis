@@ -7,35 +7,58 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/valueinvestai
+      - POSTGRES_USER=valueinvest
+      - POSTGRES_PASSWORD=valueinvest_dev_password
+      - POSTGRES_DB=valueinvestai
+      - DATABASE_URL=postgresql+asyncpg://valueinvest:valueinvest_dev_password@postgres:5432/valueinvestai
       - REDIS_URL=redis://redis:6379/0
       - APP_ENV=development
       - DEBUG=true
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - FMP_API_KEY=${FMP_API_KEY:-}
+      - EOD_API_KEY=${EOD_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ./backend:/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - valueinvest-network
 
   postgres:
     image: postgres:16-alpine
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=valueinvest
+      - POSTGRES_PASSWORD=valueinvest_dev_password
       - POSTGRES_DB=valueinvestai
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./backend/init-scripts:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U valueinvest -d valueinvestai"]
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+    networks:
+      - valueinvest-network
 
   redis:
     image: redis:7-alpine
@@ -43,7 +66,22 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - valueinvest-network
+
+networks:
+  valueinvest-network:
+    driver: bridge
 
 volumes:
   postgres_data:
+    name: valueinvest_postgres_data
   redis_data:
+    name: valueinvest_redis_data
