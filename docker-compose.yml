@@ -1,0 +1,64 @@
+# Docker Compose for Intelligent Investor Pro
+# Local development and production orchestration
+
+version: "3.8"
+
+services:
+  # Backend API Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: iip-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - DEBUG=false
+      - API_PREFIX=/api/v1
+      - DATA_DIR=/data
+      - CSV_PATH=/data/output/csv/summary.csv
+      - JSON_DIR=/data/output/json
+      - CACHE_DIR=/app/cache
+      - CORS_ORIGINS=["http://localhost:3000","http://frontend:3000"]
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+    volumes:
+      - ./data:/data:ro
+      - backend-cache:/app/cache
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # Frontend Web Application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: iip-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  backend-cache:
+    driver: local
+
+networks:
+  default:
+    name: iip-network

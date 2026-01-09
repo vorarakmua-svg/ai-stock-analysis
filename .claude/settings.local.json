@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tree:*)",
+      "Bash(dir /S \"C:\\\\Users\\\\vorar\\\\OneDrive\\\\เอกสาร2\\\\GitHub\\\\ai-stock-analysis\")",
+      "Bash(where npm:*)",
+      "Bash(where:*)",
+      "Bash(pip install:*)",
+      "Bash(npm install)",
+      "Bash(powershell -Command \"cd ''C:\\\\Users\\\\vorar\\\\OneDrive\\\\เอกสาร2\\\\GitHub\\\\ai-stock-analysis\\\\frontend''; npm install\")",
+      "Bash(powershell -Command \"where.exe npm\")",
+      "Bash(python:*)",
+      "Bash(uvicorn:*)",
+      "Bash(timeout:*)",
+      "Bash(curl:*)",
+      "Bash(dir:*)",
+      "Bash(npm run lint)",
+      "Bash(npx tsc:*)",
+      "Bash(npm install:*)",
+      "Bash(node -e:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx next build:*)",
+      "Bash(awk:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(node verify-phase2.js:*)",
+      "Bash(cat:*)",
+      "Bash(findstr:*)"
+    ]
+  }
+}

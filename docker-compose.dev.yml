@@ -1,0 +1,53 @@
+# Docker Compose for Development
+# Use: docker-compose -f docker-compose.dev.yml up
+
+version: "3.8"
+
+services:
+  # Backend API Service (Development)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: iip-backend-dev
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=development
+      - DEBUG=true
+      - API_PREFIX=/api/v1
+      - DATA_DIR=/data
+      - CSV_PATH=/data/output/csv/summary.csv
+      - JSON_DIR=/data/output/json
+      - CACHE_DIR=/app/cache
+      - CORS_ORIGINS=["http://localhost:3000"]
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+    volumes:
+      - ./data:/data:ro
+      - ./backend/app:/app/app
+      - backend-cache-dev:/app/cache
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+
+  # Frontend Web Application (Development)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: iip-frontend-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend-cache-dev:
+    driver: local
