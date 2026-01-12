@@ -25,7 +25,8 @@
       "Bash(powershell -Command:*)",
       "Bash(node verify-phase2.js:*)",
       "Bash(cat:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(gh --version:*)"
     ]
   }
 }
