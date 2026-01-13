@@ -64,11 +64,16 @@ def load_summary_csv() -> List[Dict[str, Any]]:
         records = df.to_dict(orient="records")
 
         # Double-check for any remaining float NaN values and convert to None
+        # Also normalize debt_to_equity from percentage to ratio (yfinance returns %)
         def sanitize_record(record: Dict[str, Any]) -> Dict[str, Any]:
             sanitized = {}
             for key, value in record.items():
                 if isinstance(value, float) and (pd.isna(value) or np.isinf(value)):
                     sanitized[key] = None
+                # debt_to_equity from yfinance is in percentage (75.73 = 75.73%)
+                # Convert to ratio (0.7573) for consistency
+                elif key == "debt_to_equity" and value is not None:
+                    sanitized[key] = value / 100.0
                 else:
                     sanitized[key] = value
             return sanitized
@@ -124,6 +129,12 @@ def load_stock_json(ticker: str) -> Dict[str, Any]:
     try:
         with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
+
+        # Normalize debt_to_equity from percentage to ratio (yfinance returns %)
+        # Check in valuation section where yfinance data is stored
+        if "valuation" in data and data["valuation"].get("debt_to_equity") is not None:
+            data["valuation"]["debt_to_equity"] = data["valuation"]["debt_to_equity"] / 100.0
+
         return data
 
     except json.JSONDecodeError as e:
