@@ -88,6 +88,22 @@ class Settings(BaseSettings):
         default="gemini-2.5-flash",
         description="Gemini model name for AI analysis (e.g., gemini-2.5-flash, gemini-1.5-pro)"
     )
+    LLM_PROVIDER: str = Field(
+        default="gemini",
+        description="LLM provider backend (currently only 'gemini')"
+    )
+    # gemini-2.5-flash is a 'thinking' model; reasoning tokens count against the
+    # output budget. 0 disables thinking, -1 lets the model decide, None uses the
+    # SDK default. Deterministic JSON extraction does not need thinking; the
+    # narrative analyst benefits from it.
+    GEMINI_EXTRACTION_THINKING_BUDGET: int = Field(
+        default=0,
+        description="Thinking-token budget for extraction calls (0 disables thinking)"
+    )
+    GEMINI_ANALYST_THINKING_BUDGET: int = Field(
+        default=-1,
+        description="Thinking-token budget for analyst calls (-1 = model decides)"
+    )
 
     # Cache Settings
     CACHE_DIR: str = Field(

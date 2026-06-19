@@ -21,7 +21,7 @@ yfinance==0.2.50                    # Yahoo Finance API for real-time prices
 diskcache==5.6.3                    # File-based caching with TTL support
 
 # === AI Integration ===
-google-generativeai==0.8.4          # Google Gemini Pro API SDK
+google-genai==1.56.0                # Google Gemini API SDK (current; replaces google-generativeai)
 
 # === Rate Limiting ===
 slowapi==0.1.9                      # Rate limiting for FastAPI

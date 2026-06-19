@@ -25,20 +25,22 @@ import logging
 import re
 import threading
 import time
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
-import google.generativeai as genai
 from diskcache import Cache
 
 from app.config import get_settings
 from app.core.data_loader import load_stock_json
 from app.models.analysis import WarrenBuffettAnalysis
-from app.models.valuation_output import ValuationResult
 from app.prompts.analysis_prompt import (
     BUFFETT_SYSTEM_PROMPT,
     build_analysis_prompt,
+)
+from app.services.llm import (
+    LLMProvider,
+    get_llm_provider,
+    record_llm_usage,
 )
 from app.services.valuation_engine import (
     FlexibleInputAdapter,
@@ -230,10 +232,14 @@ class AIAnalyst:
     MAX_RETRIES = 3
     RETRY_DELAY = 3.0  # Base delay in seconds
 
+    # Larger output for a comprehensive narrative memo.
+    MAX_OUTPUT_TOKENS = 16384
+
     def __init__(
         self,
         cache: Optional[AnalysisCache] = None,
         valuation_engine: Optional[ValuationEngine] = None,
+        provider: Optional[LLMProvider] = None,
     ) -> None:
         """
         Initialize the AI analyst.
@@ -254,26 +260,11 @@ class AIAnalyst:
                 "GOOGLE_API_KEY is not configured. Please set it in .env file."
             )
 
-        # Configure Gemini
-        genai.configure(api_key=settings.GOOGLE_API_KEY)
-
-        # Initialize model with appropriate settings for Buffett-style analysis
-        # Model options for investment reasoning (choose based on needs):
-        # - "gemini-2.5-pro": Best reasoning, deep analysis (RECOMMENDED for Buffett)
-        # - "gemini-2.5-flash": Good reasoning, faster and cheaper
-        # - "gemini-2.0-flash-thinking-exp": Explicit chain-of-thought reasoning
-        # - "gemini-1.5-flash": Fast but shallow reasoning (not ideal)
-        # Configure via GEMINI_MODEL_NAME environment variable
+        # LLM provider abstraction (system prompt passed per-call). The narrative
+        # analyst benefits from thinking, so the budget defaults to "model decides".
+        self.provider = provider or get_llm_provider()
+        self._thinking_budget = settings.GEMINI_ANALYST_THINKING_BUDGET
         model_name = settings.GEMINI_MODEL_NAME
-        self.model = genai.GenerativeModel(
-            model_name=model_name,
-            generation_config=genai.GenerationConfig(
-                temperature=0.7,  # Higher temp for natural Buffett-style writing
-                top_p=0.95,
-                top_k=40,
-                max_output_tokens=16384,  # Larger output for comprehensive analysis
-            ),
-        )
 
         # Initialize cache
         self.cache = cache or AnalysisCache()
@@ -329,59 +320,19 @@ class AIAnalyst:
         self._last_request_time = time.time()
         self._request_count += 1
 
-    @staticmethod
-    def _extract_text(response: Any) -> str:
-        """
-        Safely extract text from a Gemini response.
-
-        ``response.text`` raises ValueError when the candidate has no text part
-        (e.g. finish_reason == MAX_TOKENS truncation or a safety block). This
-        helper inspects ``finish_reason`` first and raises a clear, descriptive
-        GeminiAnalysisError instead of letting the property raise.
-
-        Truncation/safety failures are marked non-retryable because retrying
-        would only waste API quota.
-        """
-        candidates = getattr(response, "candidates", None)
-        if not candidates:
-            feedback = getattr(response, "prompt_feedback", None)
-            raise GeminiAnalysisError(
-                f"No candidates in Gemini response (prompt_feedback={feedback})",
-                retryable=False,
-            )
-
-        candidate = candidates[0]
-        finish_reason = getattr(candidate, "finish_reason", None)
-        finish_name = getattr(finish_reason, "name", str(finish_reason))
-
-        if finish_name == "MAX_TOKENS":
-            raise GeminiAnalysisError(
-                "Gemini response truncated (finish_reason=MAX_TOKENS). "
-                "Increase max_output_tokens or reduce the input payload size.",
-                retryable=False,
-            )
-        if finish_name in ("SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT"):
-            raise GeminiAnalysisError(
-                f"Gemini response blocked (finish_reason={finish_name})",
-                retryable=False,
-            )
-
-        content = getattr(candidate, "content", None)
-        parts = getattr(content, "parts", None) or []
-        return "".join(getattr(part, "text", "") or "" for part in parts)
-
     async def _call_gemini(self, prompt: str) -> str:
         """
-        Call Gemini API with retry logic.
+        Call the LLM provider with retry logic.
 
         Args:
-            prompt: The user prompt to send to Gemini
+            prompt: The user prompt to send.
 
         Returns:
-            Raw response text from Gemini
+            Raw response text from the model.
 
         Raises:
-            GeminiAnalysisError: If all retries fail
+            GeminiAnalysisError: If all retries fail (or on a non-retryable
+                failure such as MAX_TOKENS truncation / safety block).
         """
         last_error: Optional[Exception] = None
 
@@ -391,50 +342,41 @@ class AIAnalyst:
                 await self._rate_limit()
 
                 logger.debug(
-                    "Calling Gemini API for analysis (attempt %d/%d)",
+                    "Calling LLM for analysis (attempt %d/%d)",
                     attempt + 1,
                     self.MAX_RETRIES,
                 )
 
                 start_time = time.time()
 
-                # Make the API call
-                response = await asyncio.to_thread(
-                    self.model.generate_content,
-                    [
-                        {"role": "user", "parts": [BUFFETT_SYSTEM_PROMPT]},
-                        {"role": "model", "parts": ["I understand. I am Warren Buffett, ready to analyze this investment opportunity using my time-tested value investing principles. I will return my analysis as a valid JSON object matching the WarrenBuffettAnalysis schema, with no markdown formatting."]},
-                        {"role": "user", "parts": [prompt]},
-                    ],
+                response = await self.provider.generate(
+                    system=BUFFETT_SYSTEM_PROMPT,
+                    user=prompt,
+                    response_json=True,
+                    max_output_tokens=self.MAX_OUTPUT_TOKENS,
+                    temperature=0.7,  # Natural Buffett-style writing
+                    thinking_budget=self._thinking_budget,
                 )
 
                 elapsed = time.time() - start_time
-
-                # Extract text safely (handles MAX_TOKENS / safety blocks).
-                text = self._extract_text(response)
-                if text:
-                    logger.debug(
-                        "Gemini analysis call successful (%.2f seconds)",
-                        elapsed,
-                    )
-                    return text
-                else:
-                    raise GeminiAnalysisError("Empty response from Gemini API")
+                record_llm_usage(response, purpose="analysis")
+                logger.debug("LLM analysis call successful (%.2f seconds)", elapsed)
+                return response.text
 
             except Exception as e:
                 last_error = e
+                retryable = getattr(e, "retryable", True)
                 logger.warning(
-                    "Gemini analysis call failed (attempt %d/%d): %s",
+                    "LLM analysis call failed (attempt %d/%d): %s",
                     attempt + 1,
                     self.MAX_RETRIES,
                     str(e),
                 )
 
                 # Don't waste API calls retrying deterministic failures
-                # (truncation, safety blocks, etc.). Re-raise the original so
-                # its descriptive message and retryable=False flag are preserved.
-                if not getattr(e, "retryable", True):
-                    raise
+                # (truncation, safety blocks). Surface as GeminiAnalysisError.
+                if not retryable:
+                    raise GeminiAnalysisError(str(e), retryable=False) from e
 
                 if attempt < self.MAX_RETRIES - 1:
                     delay = self.RETRY_DELAY * (2 ** attempt)  # Exponential backoff
@@ -442,7 +384,7 @@ class AIAnalyst:
                     await asyncio.sleep(delay)
 
         raise GeminiAnalysisError(
-            f"All {self.MAX_RETRIES} analysis API calls failed: {last_error}"
+            f"All {self.MAX_RETRIES} analysis LLM calls failed: {last_error}"
         )
 
     def _parse_response(

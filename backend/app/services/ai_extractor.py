@@ -20,12 +20,8 @@ import json
 import logging
 import re
 import time
-from datetime import datetime, timezone
 from functools import lru_cache
-from pathlib import Path
 from typing import Any
-
-import google.generativeai as genai
 
 from app.config import get_settings
 from app.core.cache_manager import ExtractionCache, get_extraction_cache
@@ -36,6 +32,11 @@ from app.prompts.extraction_prompt import SYSTEM_PROMPT, build_user_prompt
 from app.prompts.extraction_prompt_v2 import (
     FLEXIBLE_SYSTEM_PROMPT,
     build_flexible_prompt,
+)
+from app.services.llm import (
+    LLMProvider,
+    get_llm_provider,
+    record_llm_usage,
 )
 
 logger = logging.getLogger(__name__)
@@ -106,9 +107,13 @@ class AIExtractor:
     MAX_RETRIES = 3
     RETRY_DELAY = 2.0  # Base delay in seconds
 
+    # Output token ceiling for extraction (gemini-2.5-flash supports up to 65536).
+    MAX_OUTPUT_TOKENS = 32768
+
     def __init__(
         self,
         cache: ExtractionCache | None = None,
+        provider: LLMProvider | None = None,
     ) -> None:
         """
         Initialize the AI extractor.
@@ -116,6 +121,8 @@ class AIExtractor:
         Args:
             cache: Optional ExtractionCache instance. If not provided,
                   uses the singleton cache from get_extraction_cache().
+            provider: Optional LLMProvider. If not provided, uses the configured
+                  singleton from get_llm_provider().
 
         Raises:
             ValueError: If GOOGLE_API_KEY is not configured.
@@ -127,37 +134,9 @@ class AIExtractor:
                 "GOOGLE_API_KEY is not configured. Please set it in .env file."
             )
 
-        # Configure Gemini
-        genai.configure(api_key=settings.GOOGLE_API_KEY)
-
-        # Initialize model with appropriate settings
-        # Model options for extraction (choose based on needs):
-        # - "gemini-2.5-flash": Fast, cheap, good for structured tasks (DEFAULT)
-        # - "gemini-1.5-pro": More capable, better instruction following, slower
-        # - "gemini-1.5-flash": Balance of speed and capability
-        self.model = genai.GenerativeModel(
-            model_name=settings.GEMINI_MODEL_NAME,
-            system_instruction=SYSTEM_PROMPT,
-            generation_config=genai.GenerationConfig(
-                temperature=0.0,  # Zero temperature for maximum consistency
-                top_p=0.95,
-                top_k=40,
-                max_output_tokens=32768,
-                response_mime_type="application/json",  # Force JSON output
-            ),
-        )
-
-        self.flexible_model = genai.GenerativeModel(
-            model_name=settings.GEMINI_MODEL_NAME,
-            system_instruction=FLEXIBLE_SYSTEM_PROMPT,
-            generation_config=genai.GenerationConfig(
-                temperature=0.0,
-                top_p=0.95,
-                top_k=40,
-                max_output_tokens=32768,
-                response_mime_type="application/json",
-            ),
-        )
+        # LLM provider abstraction (system prompts are passed per-call below).
+        self.provider = provider or get_llm_provider()
+        self._thinking_budget = settings.GEMINI_EXTRACTION_THINKING_BUDGET
 
         # Initialize cache
         self.cache = cache or get_extraction_cache()
@@ -377,64 +356,24 @@ class AIExtractor:
             self._last_request_time = time.time()
             self._request_count += 1
 
-    @staticmethod
-    def _extract_text(response: Any) -> str:
-        """
-        Safely extract text from a Gemini response.
-
-        ``response.text`` raises ValueError when the candidate has no text part
-        (e.g. finish_reason == MAX_TOKENS truncation or a safety block). This
-        helper inspects ``finish_reason`` first and raises a clear, descriptive
-        GeminiAPIError instead of letting the property raise an opaque error.
-
-        Truncation/safety failures are marked non-retryable because retrying an
-        identical request (temperature=0) would only waste API quota.
-        """
-        candidates = getattr(response, "candidates", None)
-        if not candidates:
-            feedback = getattr(response, "prompt_feedback", None)
-            raise GeminiAPIError(
-                f"No candidates in Gemini response (prompt_feedback={feedback})",
-                retryable=False,
-            )
-
-        candidate = candidates[0]
-        finish_reason = getattr(candidate, "finish_reason", None)
-        finish_name = getattr(finish_reason, "name", str(finish_reason))
-
-        if finish_name == "MAX_TOKENS":
-            raise GeminiAPIError(
-                "Gemini response truncated (finish_reason=MAX_TOKENS). "
-                "Increase max_output_tokens or reduce the input payload size.",
-                retryable=False,
-            )
-        if finish_name in ("SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT"):
-            raise GeminiAPIError(
-                f"Gemini response blocked (finish_reason={finish_name})",
-                retryable=False,
-            )
-
-        # Concatenate any text parts that are present.
-        content = getattr(candidate, "content", None)
-        parts = getattr(content, "parts", None) or []
-        return "".join(getattr(part, "text", "") or "" for part in parts)
-
     async def _call_gemini(self, prompt: str, is_flexible: bool = False) -> str:
         """
-        Call Gemini API with retry logic.
+        Call the LLM provider with retry logic.
 
         Args:
-            prompt: The user prompt to send to Gemini
-            is_flexible: Whether to use the flexible model/prompt
+            prompt: The user prompt to send.
+            is_flexible: Whether to use the flexible system prompt.
 
         Returns:
-            Raw response text from Gemini
+            Raw response text from the model.
 
         Raises:
-            GeminiAPIError: If all retries fail
+            GeminiAPIError: If all retries fail (or on a non-retryable failure
+                such as MAX_TOKENS truncation / safety block).
         """
         last_error: Exception | None = None
-        model = self.flexible_model if is_flexible else self.model
+        system = FLEXIBLE_SYSTEM_PROMPT if is_flexible else SYSTEM_PROMPT
+        purpose = "extraction_flexible" if is_flexible else "extraction"
 
         for attempt in range(self.MAX_RETRIES):
             try:
@@ -442,42 +381,39 @@ class AIExtractor:
                 await self._rate_limit()
 
                 logger.debug(
-                    "Calling Gemini API (attempt %d/%d, flexible=%s)",
+                    "Calling LLM (attempt %d/%d, flexible=%s)",
                     attempt + 1,
                     self.MAX_RETRIES,
                     is_flexible,
                 )
 
-                # Make the API call using the model with system_instruction.
-                # generate_content is synchronous/blocking, so run it in a
-                # thread to avoid blocking the async event loop.
-                response = await asyncio.to_thread(
-                    model.generate_content,
-                    prompt,
+                response = await self.provider.generate(
+                    system=system,
+                    user=prompt,
+                    response_json=True,
+                    max_output_tokens=self.MAX_OUTPUT_TOKENS,
+                    temperature=0.0,
+                    thinking_budget=self._thinking_budget,
                 )
-
-                # Extract text safely (handles MAX_TOKENS / safety blocks).
-                text = self._extract_text(response)
-                if text:
-                    logger.debug("Gemini API call successful")
-                    return text
-                else:
-                    raise GeminiAPIError("Empty response from Gemini API")
+                record_llm_usage(response, purpose=purpose)
+                logger.debug("LLM call successful")
+                return response.text
 
             except Exception as e:
                 last_error = e
+                retryable = getattr(e, "retryable", True)
                 logger.warning(
-                    "Gemini API call failed (attempt %d/%d): %s",
+                    "LLM call failed (attempt %d/%d): %s",
                     attempt + 1,
                     self.MAX_RETRIES,
                     str(e),
                 )
 
                 # Don't waste API calls retrying deterministic failures
-                # (truncation, safety blocks, etc.). Re-raise the original so
-                # its descriptive message and retryable=False flag are preserved.
-                if not getattr(e, "retryable", True):
-                    raise
+                # (truncation, safety blocks). Surface as GeminiAPIError so the
+                # endpoints map it to a consistent HTTP status.
+                if not retryable:
+                    raise GeminiAPIError(str(e), retryable=False) from e
 
                 if attempt < self.MAX_RETRIES - 1:
                     delay = self.RETRY_DELAY * (2**attempt)  # Exponential backoff
@@ -485,7 +421,7 @@ class AIExtractor:
                     await asyncio.sleep(delay)
 
         raise GeminiAPIError(
-            f"All {self.MAX_RETRIES} API call attempts failed: {last_error}"
+            f"All {self.MAX_RETRIES} LLM call attempts failed: {last_error}"
         )
 
     def _parse_response(self, response: str) -> StandardizedValuationInput:
@@ -530,7 +466,7 @@ class AIExtractor:
             # Parse JSON
             try:
                 data = json.loads(json_str)
-            except json.JSONDecodeError as e:
+            except json.JSONDecodeError:
                 # Try to fix common JSON issues
                 json_str = self._fix_json(json_str)
                 data = json.loads(json_str)
