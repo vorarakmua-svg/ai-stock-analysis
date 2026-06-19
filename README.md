@@ -17,7 +17,7 @@ A local-first stock analysis web application combining AI-powered data normaliza
 
 ### Backend
 - **Python 3.11+** with FastAPI
-- **Google Gemini AI** (gemini-2.0-flash) for data extraction and analysis
+- **Google Gemini AI** (gemini-2.5-flash) for data extraction and analysis
 - **yfinance** for real-time stock data and historical prices
 - **Pandas/NumPy** for data processing and calculations
 - **diskcache** for persistent caching (7-day TTL for AI analysis)
@@ -116,7 +116,7 @@ Open http://localhost:3000 in your browser.
 APP_ENV=development
 DEBUG=false
 GOOGLE_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL_NAME=gemini-2.0-flash
+GEMINI_MODEL_NAME=gemini-2.5-flash
 DATA_DIR=../data
 CSV_PATH=../data/output/csv/summary.csv
 JSON_DIR=../data/output/json

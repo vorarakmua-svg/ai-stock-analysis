@@ -50,8 +50,14 @@ class ExtractionError(Exception):
 class GeminiAPIError(ExtractionError):
     """Exception raised when Gemini API call fails."""
 
-    def __init__(self, message: str, status_code: int | None = None):
+    def __init__(
+        self,
+        message: str,
+        status_code: int | None = None,
+        retryable: bool = True,
+    ):
         self.status_code = status_code
+        self.retryable = retryable
         super().__init__(message)
 
 
@@ -126,17 +132,30 @@ class AIExtractor:
 
         # Initialize model with appropriate settings
         # Model options for extraction (choose based on needs):
-        # - "gemini-2.0-flash": Fast, cheap, good for structured tasks (DEFAULT)
+        # - "gemini-2.5-flash": Fast, cheap, good for structured tasks (DEFAULT)
         # - "gemini-1.5-pro": More capable, better instruction following, slower
         # - "gemini-1.5-flash": Balance of speed and capability
         self.model = genai.GenerativeModel(
-            model_name="gemini-2.0-flash",
+            model_name=settings.GEMINI_MODEL_NAME,
+            system_instruction=SYSTEM_PROMPT,
             generation_config=genai.GenerationConfig(
                 temperature=0.0,  # Zero temperature for maximum consistency
                 top_p=0.95,
                 top_k=40,
-                max_output_tokens=8192,
+                max_output_tokens=16384,
                 response_mime_type="application/json",  # Force JSON output
+            ),
+        )
+
+        self.flexible_model = genai.GenerativeModel(
+            model_name=settings.GEMINI_MODEL_NAME,
+            system_instruction=FLEXIBLE_SYSTEM_PROMPT,
+            generation_config=genai.GenerationConfig(
+                temperature=0.0,
+                top_p=0.95,
+                top_k=40,
+                max_output_tokens=16384,
+                response_mime_type="application/json",
             ),
         )
 
@@ -149,7 +168,7 @@ class AIExtractor:
         self._window_start: float = time.time()
         self._rate_limit_lock: asyncio.Lock = asyncio.Lock()
 
-        logger.info("AIExtractor initialized with Gemini model: gemini-2.0-flash")
+        logger.info(f"AIExtractor initialized with Gemini model: {settings.GEMINI_MODEL_NAME}")
 
     def truncate_json(self, stock_data: dict) -> dict:
         """
@@ -179,6 +198,9 @@ class AIExtractor:
             "company_name": stock_data.get("company_name", ""),
             "collected_at": stock_data.get("collected_at", ""),
         }
+        
+        def get_size(d):
+            return len(json.dumps(d))
 
         # Company info (keep everything - it's small)
         if "company_info" in stock_data:
@@ -186,14 +208,17 @@ class AIExtractor:
             # Remove large nested arrays to save tokens
             company_info.pop("officers", None)
             truncated["company_info"] = company_info
+            logger.debug(f"Size - company_info: {get_size(company_info)}")
 
         # Market data (keep all - essential for valuation)
         if "market_data" in stock_data:
             truncated["market_data"] = stock_data["market_data"]
+            logger.debug(f"Size - market_data: {get_size(stock_data['market_data'])}")
 
         # Valuation section (keep all pre-calculated metrics)
         if "valuation" in stock_data:
             truncated["valuation"] = stock_data["valuation"]
+            logger.debug(f"Size - valuation: {get_size(stock_data['valuation'])}")
 
         # Shareholders (only need shares outstanding)
         if "shareholders" in stock_data:
@@ -202,6 +227,7 @@ class AIExtractor:
                 "shares_outstanding": shareholders.get("shares_outstanding"),
                 "float_shares": shareholders.get("float_shares"),
             }
+            logger.debug(f"Size - shareholders: {get_size(truncated['shareholders'])}")
 
         # Calculated metrics (keep current metrics, truncate historical)
         if "calculated_metrics" in stock_data:
@@ -215,19 +241,43 @@ class AIExtractor:
                     year: historical[year] for year in sorted_years
                 }
             truncated["calculated_metrics"] = calc_metrics
+            logger.debug(f"Size - calculated_metrics: {get_size(calc_metrics)}")
 
-        # Annual financials (keep last 10 years for CAGR calculations)
+        # Annual financials (keep last 5 years and only essential fields)
         if "financials_annual" in stock_data:
             annual = stock_data["financials_annual"]
-            sorted_years = sorted(annual.keys(), reverse=True)[:10]
-            truncated["financials_annual"] = {
-                year: annual[year] for year in sorted_years
+            sorted_years = sorted(annual.keys(), reverse=True)[:5]
+            
+            # Filter for essential fields to save tokens
+            ESSENTIAL_FIELDS = {
+                "Net Revenue", "Total Revenue", "Gross Profit", "Operating Income",
+                "Net Income", "EPS Basic", "EPS Diluted", "Operating Cash Flow",
+                "Investing Cash Flow", "Financing Cash Flow", "Capital Expenditures",
+                "Free Cash Flow", "Total Assets", "Current Assets", "Total Liabilities",
+                "Current Liabilities", "Total Stockholders Equity", "Long-Term Debt",
+                "Total Debt", "Cash and Cash Equivalents", "Stock Repurchases",
+                "Dividends Paid", "R&D Expense", "SG&A Expense", "Depreciation",
+                "Stock-Based Compensation", "Weighted Avg Shares Diluted"
             }
+            
+            truncated_annual = {}
+            for year in sorted_years:
+                year_data = annual[year]
+                filtered_year = {
+                    k: v for k, v in year_data.items() 
+                    if k in ESSENTIAL_FIELDS or k in ["fiscal_year", "filed_date", "period_end"]
+                }
+                truncated_annual[year] = filtered_year
+                
+            truncated["financials_annual"] = truncated_annual
+            logger.debug(f"Size - financials_annual (filtered): {get_size(truncated_annual)}")
 
         # Yahoo financials (quarterly data for TTM)
         if "yahoo_financials" in stock_data:
             yahoo = stock_data["yahoo_financials"]
             truncated["yahoo_financials"] = {}
+            
+            y_sizes = {}
 
             # Income statement - quarterly (last 8 quarters)
             if "income_statement_quarterly" in yahoo:
@@ -236,6 +286,7 @@ class AIExtractor:
                 truncated["yahoo_financials"]["income_statement_quarterly"] = {
                     q: quarterly_income[q] for q in sorted_quarters
                 }
+                y_sizes["income_q"] = get_size(truncated["yahoo_financials"]["income_statement_quarterly"])
 
             # Income statement - annual (last 5 years)
             if "income_statement_annual" in yahoo:
@@ -244,6 +295,7 @@ class AIExtractor:
                 truncated["yahoo_financials"]["income_statement_annual"] = {
                     y: annual_income[y] for y in sorted_years
                 }
+                y_sizes["income_a"] = get_size(truncated["yahoo_financials"]["income_statement_annual"])
 
             # Balance sheet - quarterly (last 4 quarters)
             if "balance_sheet_quarterly" in yahoo:
@@ -252,6 +304,7 @@ class AIExtractor:
                 truncated["yahoo_financials"]["balance_sheet_quarterly"] = {
                     q: quarterly_bs[q] for q in sorted_quarters
                 }
+                y_sizes["bs_q"] = get_size(truncated["yahoo_financials"]["balance_sheet_quarterly"])
 
             # Balance sheet - annual (last 5 years)
             if "balance_sheet_annual" in yahoo:
@@ -260,6 +313,7 @@ class AIExtractor:
                 truncated["yahoo_financials"]["balance_sheet_annual"] = {
                     y: annual_bs[y] for y in sorted_years
                 }
+                y_sizes["bs_a"] = get_size(truncated["yahoo_financials"]["balance_sheet_annual"])
 
             # Cash flow - quarterly (last 8 quarters)
             # Support both naming conventions: cash_flow_quarterly and cash_flow_statement_quarterly
@@ -270,6 +324,7 @@ class AIExtractor:
                 truncated["yahoo_financials"]["cash_flow_statement_quarterly"] = {
                     q: quarterly_cf[q] for q in sorted_quarters
                 }
+                y_sizes["cf_q"] = get_size(truncated["yahoo_financials"]["cash_flow_statement_quarterly"])
 
             # Cash flow - annual (last 5 years)
             # Support both naming conventions: cash_flow_annual and cash_flow_statement_annual
@@ -280,6 +335,9 @@ class AIExtractor:
                 truncated["yahoo_financials"]["cash_flow_statement_annual"] = {
                     y: annual_cf[y] for y in sorted_years
                 }
+                y_sizes["cf_a"] = get_size(truncated["yahoo_financials"]["cash_flow_statement_annual"])
+            
+            logger.debug(f"Size - yahoo_financials: {y_sizes}")
 
         return truncated
 
@@ -319,13 +377,55 @@ class AIExtractor:
             self._last_request_time = time.time()
             self._request_count += 1
 
-    async def _call_gemini(self, prompt: str, system_prompt: str = SYSTEM_PROMPT) -> str:
+    @staticmethod
+    def _extract_text(response: Any) -> str:
+        """
+        Safely extract text from a Gemini response.
+
+        ``response.text`` raises ValueError when the candidate has no text part
+        (e.g. finish_reason == MAX_TOKENS truncation or a safety block). This
+        helper inspects ``finish_reason`` first and raises a clear, descriptive
+        GeminiAPIError instead of letting the property raise an opaque error.
+
+        Truncation/safety failures are marked non-retryable because retrying an
+        identical request (temperature=0) would only waste API quota.
+        """
+        candidates = getattr(response, "candidates", None)
+        if not candidates:
+            feedback = getattr(response, "prompt_feedback", None)
+            raise GeminiAPIError(
+                f"No candidates in Gemini response (prompt_feedback={feedback})",
+                retryable=False,
+            )
+
+        candidate = candidates[0]
+        finish_reason = getattr(candidate, "finish_reason", None)
+        finish_name = getattr(finish_reason, "name", str(finish_reason))
+
+        if finish_name == "MAX_TOKENS":
+            raise GeminiAPIError(
+                "Gemini response truncated (finish_reason=MAX_TOKENS). "
+                "Increase max_output_tokens or reduce the input payload size.",
+                retryable=False,
+            )
+        if finish_name in ("SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT"):
+            raise GeminiAPIError(
+                f"Gemini response blocked (finish_reason={finish_name})",
+                retryable=False,
+            )
+
+        # Concatenate any text parts that are present.
+        content = getattr(candidate, "content", None)
+        parts = getattr(content, "parts", None) or []
+        return "".join(getattr(part, "text", "") or "" for part in parts)
+
+    async def _call_gemini(self, prompt: str, is_flexible: bool = False) -> str:
         """
         Call Gemini API with retry logic.
 
         Args:
             prompt: The user prompt to send to Gemini
-            system_prompt: The system prompt to use (default: SYSTEM_PROMPT)
+            is_flexible: Whether to use the flexible model/prompt
 
         Returns:
             Raw response text from Gemini
@@ -334,6 +434,7 @@ class AIExtractor:
             GeminiAPIError: If all retries fail
         """
         last_error: Exception | None = None
+        model = self.flexible_model if is_flexible else self.model
 
         for attempt in range(self.MAX_RETRIES):
             try:
@@ -341,25 +442,25 @@ class AIExtractor:
                 await self._rate_limit()
 
                 logger.debug(
-                    "Calling Gemini API (attempt %d/%d)",
+                    "Calling Gemini API (attempt %d/%d, flexible=%s)",
                     attempt + 1,
                     self.MAX_RETRIES,
+                    is_flexible,
                 )
 
-                # Make the API call
+                # Make the API call using the model with system_instruction.
+                # generate_content is synchronous/blocking, so run it in a
+                # thread to avoid blocking the async event loop.
                 response = await asyncio.to_thread(
-                    self.model.generate_content,
-                    [
-                        {"role": "user", "parts": [system_prompt]},
-                        {"role": "model", "parts": ["I understand. I will extract ALL available financial data and return valid JSON."]},
-                        {"role": "user", "parts": [prompt]},
-                    ],
+                    model.generate_content,
+                    prompt,
                 )
 
-                # Extract text from response
-                if response.text:
+                # Extract text safely (handles MAX_TOKENS / safety blocks).
+                text = self._extract_text(response)
+                if text:
                     logger.debug("Gemini API call successful")
-                    return response.text
+                    return text
                 else:
                     raise GeminiAPIError("Empty response from Gemini API")
 
@@ -371,6 +472,12 @@ class AIExtractor:
                     self.MAX_RETRIES,
                     str(e),
                 )
+
+                # Don't waste API calls retrying deterministic failures
+                # (truncation, safety blocks, etc.). Re-raise the original so
+                # its descriptive message and retryable=False flag are preserved.
+                if not getattr(e, "retryable", True):
+                    raise
 
                 if attempt < self.MAX_RETRIES - 1:
                     delay = self.RETRY_DELAY * (2**attempt)  # Exponential backoff
@@ -575,7 +682,7 @@ class AIExtractor:
 
         # Call Gemini API
         logger.info("Calling Gemini API for %s extraction...", ticker)
-        response = await self._call_gemini(user_prompt)
+        response = await self._call_gemini(user_prompt, is_flexible=False)
 
         # Parse and validate response
         result = self._parse_response(response)
@@ -730,7 +837,7 @@ class AIExtractor:
 
         # Call Gemini with flexible system prompt
         logger.info("Calling Gemini API for %s flexible extraction...", ticker)
-        response = await self._call_gemini(user_prompt, FLEXIBLE_SYSTEM_PROMPT)
+        response = await self._call_gemini(user_prompt, is_flexible=True)
 
         # Parse with flexible model
         result = self._parse_flexible_response(response)

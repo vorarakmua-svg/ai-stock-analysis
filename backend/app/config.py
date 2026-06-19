@@ -85,8 +85,8 @@ class Settings(BaseSettings):
         description="Google AI (Gemini) API key"
     )
     GEMINI_MODEL_NAME: str = Field(
-        default="gemini-2.0-flash",
-        description="Gemini model name for AI analysis (e.g., gemini-2.0-flash, gemini-1.5-pro)"
+        default="gemini-2.5-flash",
+        description="Gemini model name for AI analysis (e.g., gemini-2.5-flash, gemini-1.5-pro)"
     )
 
     # Cache Settings

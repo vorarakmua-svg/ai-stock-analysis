@@ -58,8 +58,14 @@ class AnalysisError(Exception):
 class GeminiAnalysisError(AnalysisError):
     """Exception raised when Gemini API call fails."""
 
-    def __init__(self, message: str, status_code: Optional[int] = None):
+    def __init__(
+        self,
+        message: str,
+        status_code: Optional[int] = None,
+        retryable: bool = True,
+    ):
         self.status_code = status_code
+        self.retryable = retryable
         super().__init__(message)
 
 
@@ -256,7 +262,7 @@ class AIAnalyst:
         # - "gemini-2.5-pro": Best reasoning, deep analysis (RECOMMENDED for Buffett)
         # - "gemini-2.5-flash": Good reasoning, faster and cheaper
         # - "gemini-2.0-flash-thinking-exp": Explicit chain-of-thought reasoning
-        # - "gemini-2.0-flash": Fast but shallow reasoning (not ideal)
+        # - "gemini-1.5-flash": Fast but shallow reasoning (not ideal)
         # Configure via GEMINI_MODEL_NAME environment variable
         model_name = settings.GEMINI_MODEL_NAME
         self.model = genai.GenerativeModel(
@@ -323,6 +329,47 @@ class AIAnalyst:
         self._last_request_time = time.time()
         self._request_count += 1
 
+    @staticmethod
+    def _extract_text(response: Any) -> str:
+        """
+        Safely extract text from a Gemini response.
+
+        ``response.text`` raises ValueError when the candidate has no text part
+        (e.g. finish_reason == MAX_TOKENS truncation or a safety block). This
+        helper inspects ``finish_reason`` first and raises a clear, descriptive
+        GeminiAnalysisError instead of letting the property raise.
+
+        Truncation/safety failures are marked non-retryable because retrying
+        would only waste API quota.
+        """
+        candidates = getattr(response, "candidates", None)
+        if not candidates:
+            feedback = getattr(response, "prompt_feedback", None)
+            raise GeminiAnalysisError(
+                f"No candidates in Gemini response (prompt_feedback={feedback})",
+                retryable=False,
+            )
+
+        candidate = candidates[0]
+        finish_reason = getattr(candidate, "finish_reason", None)
+        finish_name = getattr(finish_reason, "name", str(finish_reason))
+
+        if finish_name == "MAX_TOKENS":
+            raise GeminiAnalysisError(
+                "Gemini response truncated (finish_reason=MAX_TOKENS). "
+                "Increase max_output_tokens or reduce the input payload size.",
+                retryable=False,
+            )
+        if finish_name in ("SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT"):
+            raise GeminiAnalysisError(
+                f"Gemini response blocked (finish_reason={finish_name})",
+                retryable=False,
+            )
+
+        content = getattr(candidate, "content", None)
+        parts = getattr(content, "parts", None) or []
+        return "".join(getattr(part, "text", "") or "" for part in parts)
+
     async def _call_gemini(self, prompt: str) -> str:
         """
         Call Gemini API with retry logic.
@@ -363,13 +410,14 @@ class AIAnalyst:
 
                 elapsed = time.time() - start_time
 
-                # Extract text from response
-                if response.text:
+                # Extract text safely (handles MAX_TOKENS / safety blocks).
+                text = self._extract_text(response)
+                if text:
                     logger.debug(
                         "Gemini analysis call successful (%.2f seconds)",
                         elapsed,
                     )
-                    return response.text
+                    return text
                 else:
                     raise GeminiAnalysisError("Empty response from Gemini API")
 
@@ -381,6 +429,12 @@ class AIAnalyst:
                     self.MAX_RETRIES,
                     str(e),
                 )
+
+                # Don't waste API calls retrying deterministic failures
+                # (truncation, safety blocks, etc.). Re-raise the original so
+                # its descriptive message and retryable=False flag are preserved.
+                if not getattr(e, "retryable", True):
+                    raise
 
                 if attempt < self.MAX_RETRIES - 1:
                     delay = self.RETRY_DELAY * (2 ** attempt)  # Exponential backoff
