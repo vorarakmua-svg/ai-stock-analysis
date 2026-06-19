@@ -142,7 +142,7 @@ class AIExtractor:
                 temperature=0.0,  # Zero temperature for maximum consistency
                 top_p=0.95,
                 top_k=40,
-                max_output_tokens=16384,
+                max_output_tokens=32768,
                 response_mime_type="application/json",  # Force JSON output
             ),
         )
@@ -154,7 +154,7 @@ class AIExtractor:
                 temperature=0.0,
                 top_p=0.95,
                 top_k=40,
-                max_output_tokens=16384,
+                max_output_tokens=32768,
                 response_mime_type="application/json",
             ),
         )
