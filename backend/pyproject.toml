@@ -1,0 +1,108 @@
+[project]
+name = "intelligent-investor-pro-backend"
+version = "0.1.0"
+description = "FastAPI backend for AI-powered stock valuation and analysis"
+requires-python = ">=3.11"
+
+# Runtime dependencies (single source of truth; requirements.txt is kept in sync
+# for environments that don't read pyproject yet).
+dependencies = [
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.34.0",
+    "pydantic==2.10.4",
+    "pydantic-settings==2.7.1",
+    "pandas==2.2.3",
+    "orjson==3.10.13",
+    "python-dotenv==1.0.1",
+    "yfinance==0.2.50",
+    "diskcache==5.6.3",
+    "google-generativeai==0.8.4",
+    "slowapi==0.1.9",
+    "httpx==0.28.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff==0.8.6",
+    "mypy==1.14.1",
+    "pytest==8.3.4",
+    "pytest-asyncio==0.25.2",
+    "pytest-cov==6.0.0",
+    "pytest-mock==3.14.0",
+    "respx==0.22.0",
+    "freezegun==1.5.1",
+    "pre-commit==4.0.1",
+    "types-requests",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app"]
+
+# ----------------------------------------------------------------------------
+# Ruff (lint + format)
+# ----------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["cache", "tests/fixtures/data"]
+
+[tool.ruff.lint]
+# Pragmatic starter set: pyflakes, pycodestyle, isort, bugbear, pyupgrade, comprehensions.
+select = ["E", "F", "I", "B", "UP", "C4", "W"]
+ignore = [
+    "E501",  # line length handled by the formatter
+    "B008",  # FastAPI uses function calls (Depends(...)) in argument defaults
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011"]
+
+# ----------------------------------------------------------------------------
+# mypy (strict-ish on the critical core, relaxed globally for now)
+# ----------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+exclude = ["tests/", "cache/"]
+
+[[tool.mypy.overrides]]
+module = [
+    "app.services.valuation_engine",
+    "app.config",
+    "app.models.*",
+]
+disallow_untyped_defs = true
+warn_return_any = true
+
+# ----------------------------------------------------------------------------
+# pytest + coverage
+# ----------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-ra"
+filterwarnings = [
+    # The deprecated google-generativeai SDK emits a FutureWarning on import;
+    # silence it here until the P3 migration removes the dependency.
+    "ignore::FutureWarning",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/main.py", "tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
