@@ -49,6 +49,31 @@ jobs:
           GOOGLE_API_KEY: test-dummy
         run: pytest --cov=app --cov-report=term-missing --cov-fail-under=55
 
+  ingestion:
+    name: Ingestion (lint + test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ingestion
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: ingestion/pyproject.toml
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Ruff lint
+        run: ruff check ingestion tests
+      - name: Ruff format check
+        run: ruff format --check ingestion tests
+      - name: Pytest
+        run: pytest
+
   frontend:
     name: Frontend (lint)
     runs-on: ubuntu-latest

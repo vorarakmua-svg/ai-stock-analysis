@@ -1,0 +1,53 @@
+name: Data refresh
+
+# Scheduled, reproducible data refresh. Runs the committed ingestion pipeline.
+# Manual runs accept a ticker list; the weekly schedule refreshes the universe.
+on:
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: "Comma-separated tickers (blank = full universe)"
+        required: false
+        default: ""
+  schedule:
+    # Weekly, Monday 06:00 UTC.
+    - cron: "0 6 * * 1"
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ingestion
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: ingestion/pyproject.toml
+
+      - name: Install dependencies
+        run: pip install -e .
+
+      - name: Run refresh
+        env:
+          # SEC requires a descriptive User-Agent; set as a repo variable/secret.
+          INGESTION_SEC_USER_AGENT: ${{ vars.INGESTION_SEC_USER_AGENT }}
+        run: |
+          if [ -n "${{ github.event.inputs.tickers }}" ]; then
+            python -m ingestion.cli refresh --tickers "${{ github.event.inputs.tickers }}"
+          else
+            python -m ingestion.cli refresh --all
+          fi
+
+      - name: Upload data artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stock-data
+          path: |
+            data/output/json/
+            data/output/csv/
+            data/output/_manifest.json
+          if-no-files-found: warn

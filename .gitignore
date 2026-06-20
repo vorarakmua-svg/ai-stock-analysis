@@ -61,9 +61,12 @@ htmlcov/
 .pytest_cache/
 coverage/
 
-# Data files - uncomment if files are too large
-# data/output/json/*.json
-# data/output/csv/*.csv
+# Generated data files - produced by the `ingestion` pipeline, not committed.
+# The pipeline + committed ticker universe is the reproducible source of truth.
+data/output/json/*.json
+data/output/csv/*.csv
+data/output/_manifest.json
+data/output/**/*.tmp
 
 # Secrets
 *.pem
