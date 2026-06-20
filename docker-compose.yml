@@ -22,15 +22,51 @@ services:
       - CACHE_DIR=/app/cache
       - CORS_ORIGINS=["http://localhost:3000","http://frontend:3000"]
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      # Persistence (P6). Override/disable by leaving these unset.
+      - DATABASE_URL=postgresql+asyncpg://iip:iip@postgres:5432/iip
+      - REDIS_URL=redis://redis:6379/0
     volumes:
       - ./data:/data:ro
       - backend-cache:/app/cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
+    restart: unless-stopped
+
+  # PostgreSQL - persistence (valuation history, LLM usage/metering)
+  postgres:
+    image: postgres:16-alpine
+    container_name: iip-postgres
+    environment:
+      - POSTGRES_USER=iip
+      - POSTGRES_PASSWORD=iip
+      - POSTGRES_DB=iip
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iip"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Redis - shared cache / future job queue backend
+  redis:
+    image: redis:7-alpine
+    container_name: iip-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   # Frontend Web Application
@@ -57,6 +93,8 @@ services:
 
 volumes:
   backend-cache:
+    driver: local
+  postgres-data:
     driver: local
 
 networks:

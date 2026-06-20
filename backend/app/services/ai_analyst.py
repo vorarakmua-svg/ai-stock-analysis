@@ -360,6 +360,17 @@ class AIAnalyst:
 
                 elapsed = time.time() - start_time
                 record_llm_usage(response, purpose="analysis")
+                # Best-effort metering persistence (no-op when DB disabled).
+                from app.db.repository import save_llm_usage
+
+                await save_llm_usage(
+                    purpose="analysis",
+                    model=response.model,
+                    input_tokens=response.input_tokens,
+                    output_tokens=response.output_tokens,
+                    thinking_tokens=response.thinking_tokens,
+                    total_tokens=response.total_tokens,
+                )
                 logger.debug("LLM analysis call successful (%.2f seconds)", elapsed)
                 return response.text
 

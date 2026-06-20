@@ -1484,8 +1484,19 @@ class ValuationEngine:
                 data_quality_score=input_data.data_confidence_score,
             )
 
-            # Cache the result
+            # Cache the result (read path)
             self.cache.set(ticker, result, extraction_timestamp)
+
+            # Persist to the database (best-effort; no-op when DB disabled).
+            from app.db.repository import save_valuation
+
+            await save_valuation(
+                ticker=ticker,
+                composite_intrinsic_value=composite_value,
+                verdict=verdict.value,
+                extraction_timestamp=extraction_timestamp,
+                payload=result.model_dump(mode="json"),
+            )
 
             logger.info(
                 "Valuation complete for %s: $%.2f intrinsic value, %.1f%% upside, verdict=%s",

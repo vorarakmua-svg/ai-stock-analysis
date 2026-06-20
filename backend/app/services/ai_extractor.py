@@ -396,6 +396,17 @@ class AIExtractor:
                     thinking_budget=self._thinking_budget,
                 )
                 record_llm_usage(response, purpose=purpose)
+                # Best-effort metering persistence (no-op when DB disabled).
+                from app.db.repository import save_llm_usage
+
+                await save_llm_usage(
+                    purpose=purpose,
+                    model=response.model,
+                    input_tokens=response.input_tokens,
+                    output_tokens=response.output_tokens,
+                    thinking_tokens=response.thinking_tokens,
+                    total_tokens=response.total_tokens,
+                )
                 logger.debug("LLM call successful")
                 return response.text
 

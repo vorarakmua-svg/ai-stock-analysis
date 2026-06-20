@@ -123,6 +123,20 @@ class Settings(BaseSettings):
         description="Sentry DSN for error tracking (disabled when empty)"
     )
 
+    # Persistence (optional; empty disables and the app stays file/disk-only)
+    DATABASE_URL: str = Field(
+        default="",
+        description="Async SQLAlchemy URL, e.g. postgresql+asyncpg://user:pass@host/db"
+    )
+    REDIS_URL: str = Field(
+        default="",
+        description="Redis URL, e.g. redis://localhost:6379/0 (empty disables)"
+    )
+    CACHE_BACKEND: str = Field(
+        default="disk",
+        description="Cache backend: 'disk' (diskcache) or 'redis'"
+    )
+
     # Cache Settings
     CACHE_DIR: str = Field(
         default="./cache",

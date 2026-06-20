@@ -65,14 +65,20 @@ def test_inbound_request_id_is_echoed(client):
 
 
 def test_ready_returns_200_when_healthy(client, monkeypatch):
-    monkeypatch.setattr(main_module, "check_readiness", lambda: (True, {"data_dir": "ok"}))
+    async def _ready():
+        return True, {"data_dir": "ok"}
+
+    monkeypatch.setattr(main_module, "check_readiness", _ready)
     resp = client.get("/ready")
     assert resp.status_code == 200
     assert resp.json()["status"] == "ready"
 
 
 def test_ready_returns_503_when_dependency_missing(client, monkeypatch):
-    monkeypatch.setattr(main_module, "check_readiness", lambda: (False, {"data_dir": "missing"}))
+    async def _not_ready():
+        return False, {"data_dir": "missing"}
+
+    monkeypatch.setattr(main_module, "check_readiness", _not_ready)
     resp = client.get("/ready")
     assert resp.status_code == 503
     assert resp.json()["checks"]["data_dir"] == "missing"
@@ -87,7 +93,7 @@ def test_metrics_endpoint_exposes_prometheus(client):
 # ---------------------------------------------------------------------------
 # Readiness + logging units
 # ---------------------------------------------------------------------------
-def test_check_readiness_logic(tmp_path, monkeypatch):
+async def test_check_readiness_logic(tmp_path, monkeypatch):
     import app.core.health as health
 
     class _FakeSettings:
@@ -99,10 +105,11 @@ def test_check_readiness_logic(tmp_path, monkeypatch):
         def json_dir_resolved(self):
             return self._json_dir
 
-    # Healthy: key set + a data dir with a json file.
+    # Healthy: key set + a data dir with a json file. (DB/Redis disabled by
+    # default, so they are absent from the checks.)
     (tmp_path / "AAPL.json").write_text("{}")
     monkeypatch.setattr(health, "get_settings", lambda: _FakeSettings("k", tmp_path))
-    healthy, checks = health.check_readiness()
+    healthy, checks = await health.check_readiness()
     assert healthy is True
     assert checks == {"google_api_key": "ok", "data_dir": "ok"}
 
@@ -110,7 +117,7 @@ def test_check_readiness_logic(tmp_path, monkeypatch):
     empty = tmp_path / "empty"
     empty.mkdir()
     monkeypatch.setattr(health, "get_settings", lambda: _FakeSettings("", empty))
-    healthy, checks = health.check_readiness()
+    healthy, checks = await health.check_readiness()
     assert healthy is False
     assert checks["google_api_key"] == "missing"
     assert checks["data_dir"] == "missing"

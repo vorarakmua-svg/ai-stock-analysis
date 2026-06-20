@@ -33,3 +33,9 @@ httpx==0.28.1                       # Async HTTP client for health checks
 python-json-logger>=3.1,<4          # Structured JSON logging
 prometheus-client>=0.21,<1          # Metrics exposition
 sentry-sdk[fastapi]>=2.0,<3         # Error tracking (active only when SENTRY_DSN set)
+
+# === Persistence ===
+sqlalchemy[asyncio]>=2.0,<3         # Async ORM
+asyncpg>=0.30,<1                    # Postgres async driver
+alembic>=1.14,<2                    # Schema migrations
+redis>=5.2,<6                       # Cache / queue backend

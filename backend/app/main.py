@@ -152,7 +152,7 @@ async def health_check() -> dict[str, str]:
 )
 async def readiness_check() -> JSONResponse:
     """Return 200 when ready, 503 (with per-dependency detail) when not."""
-    healthy, checks = check_readiness()
+    healthy, checks = await check_readiness()
     return JSONResponse(
         status_code=200 if healthy else 503,
         content={"status": "ready" if healthy else "not_ready", "checks": checks},
