@@ -179,7 +179,8 @@ class StockSummary(BaseModel):
 
         Returns field names (not aliases) for consistent API output.
         """
-        return self.model_dump(by_alias=False, exclude_none=False)
+        result: dict[str, Any] = self.model_dump(by_alias=False, exclude_none=False)
+        return result
 
 
 class StockListResponse(BaseModel):

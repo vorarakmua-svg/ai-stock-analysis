@@ -130,7 +130,9 @@ class Settings(BaseSettings):
             # Handle JSON-like string format: ["http://localhost:3000"]
             if v.startswith("[") and v.endswith("]"):
                 try:
-                    return json.loads(v)
+                    parsed = json.loads(v)
+                    if isinstance(parsed, list):
+                        return [str(origin) for origin in parsed]
                 except json.JSONDecodeError:
                     pass
             # Handle comma-separated format

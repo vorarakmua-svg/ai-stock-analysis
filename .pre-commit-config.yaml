@@ -23,5 +23,17 @@ repos:
       - id: ruff-format
         files: ^backend/
 
-  # mypy is intentionally omitted until the remaining type errors are resolved
-  # (tracked separately); ruff lint+format are the enforced gates for now.
+  # mypy runs as a blocking gate, mirroring CI (`cd backend && mypy app`). A
+  # local/system hook is used so the project's own environment supplies all
+  # runtime deps (redis, sqlalchemy, arq, ...) and the pyproject config, rather
+  # than maintaining a separate isolated dependency list. Requires the backend
+  # dev extras installed: `pip install -e "backend[dev]"`.
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (backend/app)
+        entry: bash -c 'cd backend && mypy app'
+        language: system
+        types: [python]
+        files: ^backend/app/
+        pass_filenames: false

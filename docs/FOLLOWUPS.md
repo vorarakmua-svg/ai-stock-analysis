@@ -19,17 +19,23 @@ Keep `disk` as the default so local dev is unchanged.
 **Risk:** widest change — touches the cache call-sites across all three services.
 Do it in isolation with the suite green before/after.
 
-## #13 — Resolve mypy errors, make mypy CI-blocking
-**Why:** ruff is blocking in CI; mypy is still informational (~13 errors).
+## #13 — Resolve mypy errors, make mypy CI-blocking ✅ DONE
+**Why:** ruff was blocking in CI; mypy was still informational (~13 errors).
 
-**What:** the bulk are the `FlexibleInputAdapter` vs `StandardizedValuationInput`
-duck-typing in `valuation_engine.py` (methods are typed for the latter but also
-receive the adapter). Introduce a shared `Protocol` (or `Union`) describing the
-valuation-input interface and type the engine methods with it. Also fix the
-slowapi exception-handler signature in `main.py` (cast or `# type: ignore`).
-Then drop `continue-on-error` from the mypy step in `.github/workflows/ci.yml`
-and restore the mypy hook in `.pre-commit-config.yaml`.
-Run `cd backend && mypy app` to see the current list.
+**What was done:** introduced `ValuationInputProtocol` (a read-only `Protocol`)
+plus `HistoricalFinancialsLike` in `models/valuation_input.py` describing the
+valuation-input interface that both `StandardizedValuationInput` and
+`FlexibleInputAdapter` satisfy; retyped every `ValuationEngine` method that
+consumed `input_data` against it, clearing the adapter `arg-type` errors. Fixed
+the remaining no-any-return / missing-annotation / var-annotated errors in
+`valuation_engine.py`, `config.py`, `stock.py`, and `data_loader.py`. The
+slowapi handler in `main.py` was not flagged by mypy 1.14.1, so no change was
+needed there. Dropped `continue-on-error` from the mypy step in
+`.github/workflows/ci.yml` and restored mypy in `.pre-commit-config.yaml` as a
+`local`/`system` hook that mirrors CI (`cd backend && mypy app`), so the
+project's own env supplies runtime deps (redis et al.) and the pyproject config.
+`cd backend && mypy app` → "Success: no issues found in 54 source files";
+105 backend tests still pass.
 
 ## How to resume in a fresh session
 1. `git -C <repo> pull` — all foundation work is on `master`.
