@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { QueryProvider } from "@/providers/query-provider";
 import "./globals.css";
 
@@ -31,6 +32,13 @@ export default function RootLayout({
           href="https://fonts.gstatic.com"
           crossOrigin="anonymous"
         />
+        {/*
+          Loaded at runtime via <link> (not next/font) on purpose: next/font
+          fetches Google Fonts at build time, which breaks builds in
+          offline/restricted-network environments. The browser fetches this at
+          runtime instead.
+        */}
+        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link
           href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap"
           rel="stylesheet"
@@ -50,19 +58,19 @@ export default function RootLayout({
           <header className="sticky top-0 z-50 border-b border-border bg-background-secondary/95 backdrop-blur supports-[backdrop-filter]:bg-background-secondary/60">
             <div className="container mx-auto flex h-14 items-center px-4">
               <div className="flex items-center space-x-4">
-                <a href="/" className="flex items-center space-x-2">
+                <Link href="/" className="flex items-center space-x-2">
                   <span className="text-xl font-bold tracking-tight text-foreground">
                     Intelligent Investor Pro
                   </span>
-                </a>
+                </Link>
               </div>
               <nav className="ml-auto flex items-center space-x-6">
-                <a
+                <Link
                   href="/"
                   className="text-sm font-medium text-foreground-muted transition-colors hover:text-foreground"
                 >
                   Screener
-                </a>
+                </Link>
               </nav>
             </div>
           </header>

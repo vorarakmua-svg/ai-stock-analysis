@@ -172,7 +172,7 @@ export function PriceHeader({
     );
   }
 
-  const { price, change, change_percent, volume, high, low, open, market_state, timestamp } =
+  const { price, change, change_percent, volume, high, low, open, market_state } =
     priceData;
   const isPositive = change >= 0;
   const changeColor = isPositive ? "text-positive" : "text-negative";
