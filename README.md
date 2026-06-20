@@ -109,6 +109,39 @@ npm run dev
 
 Open http://localhost:3000 in your browser.
 
+## Using the App
+
+With both servers running and http://localhost:3000 open, the typical workflow is:
+
+1. **Browse the screener.** The landing page is the stock screener — a dense,
+   Bloomberg-style table of all 100 stocks and their financial metrics. Scroll
+   horizontally for more columns and click any column header to sort by it.
+2. **Search for a stock.** Type a ticker or company name in the search box to
+   filter the table as you type.
+3. **Filter the universe.** Open the **Filter** panel to narrow the list by
+   sector and by metric ranges (market cap, P/E). Filters combine and the table
+   updates live.
+4. **Customize columns.** Use the **Columns** selector to show or hide columns
+   by category. Your selection is remembered across sessions.
+5. **Open a stock.** Click a row to go to that stock's detail page
+   (`/stocks/{ticker}`).
+6. **Review price and chart.** The detail page leads with the live price header
+   and a TradingView-style candlestick chart. Switch the timeframe
+   (1D / 1W / 1M / 3M / 6M / 1Y / 5Y) to change the range.
+7. **Read the valuation.** The valuation card shows the DCF analysis (three
+   scenarios — conservative, base, optimistic), the Graham Number and defensive
+   screen, a composite intrinsic value, and the implied upside/downside vs. the
+   current price. Click **Refresh** to force a recalculation; otherwise results
+   are cached for 24 hours.
+8. **Generate the AI memo.** Click **Generate Analysis** to produce a Warren
+   Buffett-style investment memo. The first generation takes 30–60 seconds;
+   afterwards it serves from cache (7-day TTL), and **Refresh** regenerates it.
+9. **Scan the financials.** Below the chart, the page lists the income
+   statement, balance sheet, and 52-week range for quick reference.
+
+> **Tip:** Everything above is also available directly from the REST API — see
+> [API Endpoints](#api-endpoints) — if you'd rather script your analysis.
+
 ## Environment Variables
 
 ### Backend (.env)
