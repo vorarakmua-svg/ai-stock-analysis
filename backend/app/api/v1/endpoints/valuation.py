@@ -87,9 +87,7 @@ TickerPath = Annotated[
         404: {
             "description": "Stock not found",
             "content": {
-                "application/json": {
-                    "example": {"detail": "Stock data not found for ticker: XYZ"}
-                }
+                "application/json": {"example": {"detail": "Stock data not found for ticker: XYZ"}}
             },
         },
         500: {
@@ -171,21 +169,21 @@ async def get_valuation(
         logger.error("Extraction error for %s: %s", ticker, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to extract financial data for {ticker}: {str(e)}",
+            detail=f"Failed to extract financial data for {ticker}.",
         )
 
     except ValuationError as e:
         logger.error("Valuation error for %s: %s", ticker, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to calculate valuation for {ticker}: {str(e)}",
+            detail=f"Failed to calculate valuation for {ticker}.",
         )
 
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error in valuation for %s", ticker)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected error occurred: {str(e)}",
+            detail="An unexpected error occurred.",
         )
 
 
@@ -212,9 +210,7 @@ async def get_valuation(
         404: {
             "description": "Stock not found",
             "content": {
-                "application/json": {
-                    "example": {"detail": "Stock data not found for ticker: XYZ"}
-                }
+                "application/json": {"example": {"detail": "Stock data not found for ticker: XYZ"}}
             },
         },
         500: {
@@ -295,21 +291,21 @@ async def refresh_valuation(
         logger.error("Extraction error for %s: %s", ticker, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to extract financial data for {ticker}: {str(e)}",
+            detail=f"Failed to extract financial data for {ticker}.",
         )
 
     except ValuationError as e:
         logger.error("Valuation error for %s: %s", ticker, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to calculate valuation for {ticker}: {str(e)}",
+            detail=f"Failed to calculate valuation for {ticker}.",
         )
 
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error in valuation refresh for %s", ticker)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected error occurred: {str(e)}",
+            detail="An unexpected error occurred.",
         )
 
 
@@ -373,12 +369,12 @@ async def get_flexible_extraction(
         logger.error("Extraction error for %s: %s", ticker, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to extract data for {ticker}: {str(e)}",
+            detail=f"Failed to extract data for {ticker}.",
         )
 
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error in flexible extraction for %s", ticker)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected error occurred: {str(e)}",
+            detail="An unexpected error occurred.",
         )

@@ -326,13 +326,17 @@ class FlexibleInputAdapter:
         # Try to get from growth_rates, or calculate from historical
         if self.data.growth_rates.revenue_growth_5y_cagr is not None:
             return self.data.growth_rates.revenue_growth_5y_cagr
-        # Try to calculate from historical data
-        if len(self.data.historical_financials) >= 5:
-            hist = self.data.historical_financials
-            old_rev = hist[-5].revenue if hist[-5].revenue else None
-            new_rev = hist[0].revenue if hist[0].revenue else None
+        # Calculate from historical data. The list is sorted newest-first, so the
+        # newest year is index 0 and the value `span` years earlier is index
+        # `span`. Use up to a 5-year window and the actual number of periods (a
+        # 5-element list only spans 4 years).
+        hist = self.data.historical_financials
+        if len(hist) >= 2:
+            span = min(5, len(hist) - 1)
+            new_rev = hist[0].revenue
+            old_rev = hist[span].revenue
             if old_rev and new_rev and old_rev > 0:
-                return (new_rev / old_rev) ** (1/5) - 1
+                return (new_rev / old_rev) ** (1 / span) - 1
         # Fall back to 1Y growth or default
         return self.data.growth_rates.revenue_growth_1y or 0.05
 

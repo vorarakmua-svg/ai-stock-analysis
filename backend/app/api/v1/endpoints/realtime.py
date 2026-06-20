@@ -7,7 +7,7 @@ Provides endpoints for:
 """
 
 import logging
-from typing import Any, Dict, List, Literal
+from typing import List, Literal
 
 from fastapi import APIRouter, HTTPException, Path, Query
 from pydantic import BaseModel, ConfigDict, Field
@@ -18,7 +18,6 @@ from app.services.realtime_service import (
     get_historical_data,
     get_realtime_price,
     is_market_open,
-    VALID_PERIODS,
 )
 
 logger = logging.getLogger(__name__)
@@ -58,10 +57,7 @@ class PriceResponse(BaseModel):
     open: float = Field(..., description="Day's opening price")
     previous_close: float = Field(..., description="Previous day's closing price")
     timestamp: str = Field(..., description="Data timestamp in ISO format")
-    market_state: str = Field(
-        ...,
-        description="Market state: PRE, REGULAR, POST, or CLOSED"
-    )
+    market_state: str = Field(..., description="Market state: PRE, REGULAR, POST, or CLOSED")
 
 
 class OHLCVDataPoint(BaseModel):
@@ -194,13 +190,12 @@ async def get_stock_price(
 
     except DataFetchError as e:
         logger.error("Data fetch error for %s: %s", ticker, e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to fetch market data.")
 
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error fetching price for %s", ticker)
         raise HTTPException(
-            status_code=500,
-            detail="An unexpected error occurred while fetching price data"
+            status_code=500, detail="An unexpected error occurred while fetching price data"
         )
 
 
@@ -316,13 +311,12 @@ async def get_stock_history(
 
     except DataFetchError as e:
         logger.error("Data fetch error for %s: %s", ticker, e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to fetch market data.")
 
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error fetching history for %s", ticker)
         raise HTTPException(
-            status_code=500,
-            detail="An unexpected error occurred while fetching historical data"
+            status_code=500, detail="An unexpected error occurred while fetching historical data"
         )
 
 

@@ -60,11 +60,16 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     def _make_handler(status_code: int):
         async def handler(request: Request, exc: Exception) -> JSONResponse:
-            # Domain exceptions carry messages we authored, so surfacing them is
-            # safe and useful. Server-class errors are logged at error level.
-            log = logger.error if status_code >= 500 else logger.warning
-            log("Handled %s: %s", exc.__class__.__name__, exc)
-            return _error_response(status_code, str(exc))
+            # 4xx/503 carry controlled, useful messages and are safe to surface.
+            # 5xx may wrap internal causes, so return a generic detail (the full
+            # error is logged with the request id for correlation).
+            if status_code >= 500:
+                logger.error("Handled %s: %s", exc.__class__.__name__, exc)
+                detail = "Internal server error"
+            else:
+                logger.warning("Handled %s: %s", exc.__class__.__name__, exc)
+                detail = str(exc)
+            return _error_response(status_code, detail)
 
         return handler
 

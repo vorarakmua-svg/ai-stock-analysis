@@ -14,7 +14,6 @@ investment recommendations.
 """
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response, status
 from slowapi import Limiter
@@ -74,11 +73,7 @@ limiter = Limiter(key_func=get_remote_address)
         },
         404: {
             "description": "Stock not found or valuation unavailable",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Stock not found: INVALID"}
-                }
-            },
+            "content": {"application/json": {"example": {"detail": "Stock not found: INVALID"}}},
         },
         500: {
             "description": "Analysis generation failed",
@@ -91,9 +86,7 @@ limiter = Limiter(key_func=get_remote_address)
         503: {
             "description": "AI service unavailable",
             "content": {
-                "application/json": {
-                    "example": {"detail": "AI service temporarily unavailable"}
-                }
+                "application/json": {"example": {"detail": "AI service temporarily unavailable"}}
             },
         },
     },
@@ -173,21 +166,21 @@ async def get_analysis(
         logger.error("Invalid analysis response for %s: %s", ticker, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to parse analysis response: {str(e)}",
+            detail="Failed to parse the analysis response.",
         )
 
     except AnalysisError as e:
         logger.error("Analysis error for %s: %s", ticker, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Analysis generation failed: {str(e)}",
+            detail="Analysis generation failed.",
         )
 
     except Exception as e:
         logger.exception("Unexpected error generating analysis for %s: %s", ticker, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Unexpected error: {str(e)}",
+            detail="An unexpected error occurred.",
         )
 
 
@@ -221,26 +214,16 @@ async def get_analysis(
         },
         404: {
             "description": "Stock not found",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Stock not found: INVALID"}
-                }
-            },
+            "content": {"application/json": {"example": {"detail": "Stock not found: INVALID"}}},
         },
         500: {
             "description": "Refresh failed",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Failed to refresh analysis"}
-                }
-            },
+            "content": {"application/json": {"example": {"detail": "Failed to refresh analysis"}}},
         },
         503: {
             "description": "AI service unavailable",
             "content": {
-                "application/json": {
-                    "example": {"detail": "AI service temporarily unavailable"}
-                }
+                "application/json": {"example": {"detail": "AI service temporarily unavailable"}}
             },
         },
     },
@@ -326,14 +309,14 @@ async def refresh_analysis(
         logger.error("Invalid analysis response during refresh for %s: %s", ticker, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to parse analysis response: {str(e)}",
+            detail="Failed to parse the analysis response.",
         )
 
     except AnalysisError as e:
         logger.error("Analysis error during refresh for %s: %s", ticker, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Analysis refresh failed: {str(e)}",
+            detail="Analysis refresh failed.",
         )
 
     except Exception as e:
@@ -344,7 +327,7 @@ async def refresh_analysis(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Unexpected error: {str(e)}",
+            detail="An unexpected error occurred.",
         )
 
 
@@ -374,11 +357,7 @@ async def refresh_analysis(
         },
         404: {
             "description": "Stock not found",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Stock not found: INVALID"}
-                }
-            },
+            "content": {"application/json": {"example": {"detail": "Stock not found: INVALID"}}},
         },
     },
     response_model=WarrenBuffettAnalysis,

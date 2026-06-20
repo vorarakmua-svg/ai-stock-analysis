@@ -5,6 +5,7 @@ Provides endpoint for:
 - GET /stocks/{ticker} - Get complete stock JSON data
 """
 
+import logging
 from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException
@@ -16,6 +17,8 @@ from app.core.data_loader import (
 )
 from app.dependencies import TickerPath
 from app.models.stock import StockDetailResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -42,11 +45,7 @@ router = APIRouter()
         },
         404: {
             "description": "Stock not found",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Stock not found: XYZ"}
-                }
-            },
+            "content": {"application/json": {"example": {"detail": "Stock not found: XYZ"}}},
         },
     },
 )
@@ -71,8 +70,9 @@ async def get_stock_detail(
     # Verify ticker exists
     try:
         available_tickers = get_available_tickers()
-    except DataLoadError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except DataLoadError:
+        logger.exception("Failed to load stock data for %s", ticker_upper)
+        raise HTTPException(status_code=500, detail="Failed to load stock data.")
 
     if ticker_upper not in available_tickers:
         raise HTTPException(
@@ -83,8 +83,9 @@ async def get_stock_detail(
     # Load stock JSON data
     try:
         stock_data = load_stock_json(ticker_upper)
-    except DataLoadError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except DataLoadError:
+        logger.exception("Failed to load stock data for %s", ticker_upper)
+        raise HTTPException(status_code=500, detail="Failed to load stock data.")
 
     return StockDetailResponse(
         ticker=ticker_upper,
@@ -123,7 +124,8 @@ async def get_stock_summary(
     except DataLoadError as e:
         if "not found" in str(e).lower():
             raise HTTPException(status_code=404, detail=f"Stock not found: {ticker_upper}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Failed to load stock summary for %s", ticker_upper)
+        raise HTTPException(status_code=500, detail="Failed to load stock data.")
 
     # Extract key metrics for summary
     company_info = stock_data.get("company_info", {})

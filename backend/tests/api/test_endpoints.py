@@ -72,3 +72,14 @@ def test_valuation_engine_error_maps_to_500(client):
     app.dependency_overrides[get_valuation_engine] = _engine_raising(ValuationError("bad math"))
     resp = client.get(VAL_URL)
     assert resp.status_code == 500
+    # The internal cause must not leak into the 500 response body.
+    assert "bad math" not in resp.text
+
+
+def test_unexpected_engine_error_does_not_leak(client):
+    app.dependency_overrides[get_valuation_engine] = _engine_raising(
+        RuntimeError("secret internal detail")
+    )
+    resp = client.get(VAL_URL)
+    assert resp.status_code == 500
+    assert "secret internal detail" not in resp.text

@@ -58,17 +58,13 @@ router = APIRouter()
         404: {
             "description": "Stock data not found",
             "content": {
-                "application/json": {
-                    "example": {"detail": "Stock data file not found for INVALID"}
-                }
+                "application/json": {"example": {"detail": "Stock data file not found for INVALID"}}
             },
         },
         500: {
             "description": "Extraction failed",
             "content": {
-                "application/json": {
-                    "example": {"detail": "Failed to extract data: API error"}
-                }
+                "application/json": {"example": {"detail": "Failed to extract data: API error"}}
             },
         },
         503: {

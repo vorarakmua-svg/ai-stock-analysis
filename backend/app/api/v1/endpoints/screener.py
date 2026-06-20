@@ -106,8 +106,9 @@ async def get_stocks(
     """
     try:
         raw_stocks = load_summary_csv()
-    except DataLoadError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except DataLoadError:
+        logger.exception("Failed to load stock data")
+        raise HTTPException(status_code=500, detail="Failed to load stock data.")
 
     # Convert to StockSummary models for validation
     stocks: List[StockSummary] = []
@@ -132,22 +133,21 @@ async def get_stocks(
     # Sector filter
     if sector:
         filtered_stocks = [
-            s for s in filtered_stocks
-            if s.sector and s.sector.lower() == sector.lower()
+            s for s in filtered_stocks if s.sector and s.sector.lower() == sector.lower()
         ]
 
     # Industry filter
     if industry:
         filtered_stocks = [
-            s for s in filtered_stocks
-            if s.industry and s.industry.lower() == industry.lower()
+            s for s in filtered_stocks if s.industry and s.industry.lower() == industry.lower()
         ]
 
     # Search filter (ticker or company name)
     if search:
         search_lower = search.lower()
         filtered_stocks = [
-            s for s in filtered_stocks
+            s
+            for s in filtered_stocks
             if (
                 search_lower in s.ticker.lower()
                 or (s.company_name and search_lower in s.company_name.lower())
@@ -157,27 +157,27 @@ async def get_stocks(
     # Market cap range filter
     if min_market_cap is not None:
         filtered_stocks = [
-            s for s in filtered_stocks
+            s
+            for s in filtered_stocks
             if s.market_cap is not None and s.market_cap >= min_market_cap
         ]
 
     if max_market_cap is not None:
         filtered_stocks = [
-            s for s in filtered_stocks
+            s
+            for s in filtered_stocks
             if s.market_cap is not None and s.market_cap <= max_market_cap
         ]
 
     # P/E ratio range filter
     if min_pe is not None:
         filtered_stocks = [
-            s for s in filtered_stocks
-            if s.pe_trailing is not None and s.pe_trailing >= min_pe
+            s for s in filtered_stocks if s.pe_trailing is not None and s.pe_trailing >= min_pe
         ]
 
     if max_pe is not None:
         filtered_stocks = [
-            s for s in filtered_stocks
-            if s.pe_trailing is not None and s.pe_trailing <= max_pe
+            s for s in filtered_stocks if s.pe_trailing is not None and s.pe_trailing <= max_pe
         ]
 
     # Apply sorting
@@ -245,8 +245,9 @@ async def get_stock_metadata() -> StockMetadataResponse:
         sectors = get_unique_sectors()
         industries = get_unique_industries()
         tickers = get_available_tickers()
-    except DataLoadError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except DataLoadError:
+        logger.exception("Failed to load stock data")
+        raise HTTPException(status_code=500, detail="Failed to load stock data.")
 
     return StockMetadataResponse(
         columns=columns,

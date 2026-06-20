@@ -99,19 +99,29 @@ def test_revenue_growth_5y_cagr_falls_back_to_1y_then_default():
     assert b.revenue_growth_5y_cagr == pytest.approx(0.05)
 
 
-@pytest.mark.xfail(
-    reason="Adapter bug: hist[-5] on a newest-first list compares the newest "
-    "year to itself for a 5-element list, yielding 0% CAGR. Tracked for fix.",
-    strict=True,
-)
 def test_revenue_growth_5y_cagr_computed_from_history():
+    # 6 entries span 5 years; oldest (2019) = 100, newest (2024) = 100 * 1.1^5.
+    history = [
+        {"fiscal_year": 2019, "revenue": 100.0},
+        {"fiscal_year": 2020, "revenue": 110.0},
+        {"fiscal_year": 2021, "revenue": 121.0},
+        {"fiscal_year": 2022, "revenue": 133.1},
+        {"fiscal_year": 2023, "revenue": 146.41},
+        {"fiscal_year": 2024, "revenue": 161.051},
+    ]
+    a = _adapter(growth_rates={}, historical_financials=history)
+    # (161.051/100)^(1/5) - 1 == 0.10
+    assert a.revenue_growth_5y_cagr == pytest.approx(0.10, abs=1e-4)
+
+
+def test_revenue_growth_5y_cagr_uses_actual_span_for_short_history():
+    # 5 entries span only 4 years: (133.1/100)^(1/4) - 1.
     history = [
         {"fiscal_year": 2020, "revenue": 100.0},
         {"fiscal_year": 2021, "revenue": 110.0},
-        {"fiscal_year": 2022, "revenue": 120.0},
-        {"fiscal_year": 2023, "revenue": 130.0},
-        {"fiscal_year": 2024, "revenue": 161.051},  # 100 * 1.1^5
+        {"fiscal_year": 2022, "revenue": 121.0},
+        {"fiscal_year": 2023, "revenue": 127.0},
+        {"fiscal_year": 2024, "revenue": 133.1},
     ]
     a = _adapter(growth_rates={}, historical_financials=history)
-    # Intended: (161.051/100)^(1/5) - 1 ≈ 0.10. Currently returns ~0 (bug).
-    assert a.revenue_growth_5y_cagr == pytest.approx(0.10, abs=1e-4)
+    assert a.revenue_growth_5y_cagr == pytest.approx((133.1 / 100) ** (1 / 4) - 1, abs=1e-4)
