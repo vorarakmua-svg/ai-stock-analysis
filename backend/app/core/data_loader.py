@@ -66,7 +66,7 @@ def load_summary_csv() -> list[dict[str, Any]]:
         # Double-check for any remaining float NaN values and convert to None
         # Also normalize debt_to_equity from percentage to ratio (yfinance returns %)
         def sanitize_record(record: dict[str, Any]) -> dict[str, Any]:
-            sanitized = {}
+            sanitized: dict[str, Any] = {}
             for key, value in record.items():
                 if isinstance(value, float) and (pd.isna(value) or np.isinf(value)):
                     sanitized[key] = None

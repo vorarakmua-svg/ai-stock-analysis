@@ -29,8 +29,11 @@ from typing import Any
 from diskcache import Cache
 
 from app.config import get_settings
-from app.models.flexible_input import FlexibleValuationInput
-from app.models.valuation_input import StandardizedValuationInput
+from app.models.flexible_input import FlexibleValuationInput, HistoricalYear
+from app.models.valuation_input import (
+    StandardizedValuationInput,
+    ValuationInputProtocol,
+)
 from app.models.valuation_output import (
     DCFScenario,
     DCFValuation,
@@ -68,7 +71,7 @@ class FlexibleInputAdapter:
         return self.data.company_name
 
     @property
-    def extraction_timestamp(self):
+    def extraction_timestamp(self) -> datetime:
         return self.data.extraction_timestamp
 
     @property
@@ -336,7 +339,7 @@ class FlexibleInputAdapter:
             new_rev = hist[0].revenue
             old_rev = hist[span].revenue
             if old_rev and new_rev and old_rev > 0:
-                return (new_rev / old_rev) ** (1 / span) - 1
+                return float((new_rev / old_rev) ** (1 / span) - 1)
         # Fall back to 1Y growth or default
         return self.data.growth_rates.revenue_growth_1y or 0.05
 
@@ -367,7 +370,7 @@ class FlexibleInputAdapter:
 
     # === Historical Data ===
     @property
-    def historical_financials(self):
+    def historical_financials(self) -> list[HistoricalYear]:
         return self.data.historical_financials
 
     # === Data Quality ===
@@ -497,7 +500,7 @@ class ValuationCache:
                 return None
 
             if isinstance(cached_data, dict):
-                result = ValuationResult.model_validate(cached_data)
+                result: ValuationResult = ValuationResult.model_validate(cached_data)
                 logger.debug(
                     "Valuation cache hit for %s (timestamp: %s)",
                     ticker,
@@ -667,7 +670,7 @@ class ValuationEngine:
 
     def calculate_wacc(
         self,
-        input_data: StandardizedValuationInput,
+        input_data: ValuationInputProtocol,
     ) -> tuple[float, dict[str, Any]]:
         """
         Calculate Weighted Average Cost of Capital (WACC).
@@ -743,7 +746,7 @@ class ValuationEngine:
 
     def calculate_dcf_scenario(
         self,
-        input_data: StandardizedValuationInput,
+        input_data: ValuationInputProtocol,
         scenario_name: str,
         growth_rate: float,
         terminal_growth: float,
@@ -880,7 +883,7 @@ class ValuationEngine:
 
     def calculate_dcf(
         self,
-        input_data: StandardizedValuationInput,
+        input_data: ValuationInputProtocol,
     ) -> DCFValuation:
         """
         Calculate complete DCF valuation with three scenarios.
@@ -1015,7 +1018,7 @@ class ValuationEngine:
 
     def calculate_graham_number(
         self,
-        input_data: StandardizedValuationInput,
+        input_data: ValuationInputProtocol,
     ) -> GrahamNumber:
         """
         Calculate Benjamin Graham's intrinsic value formula.
@@ -1077,7 +1080,7 @@ class ValuationEngine:
 
     def calculate_graham_screen(
         self,
-        input_data: StandardizedValuationInput,
+        input_data: ValuationInputProtocol,
     ) -> GrahamDefensiveCriteria:
         """
         Evaluate Graham's 7 defensive investor criteria.
@@ -1258,7 +1261,7 @@ class ValuationEngine:
 
     def _calculate_confidence_score(
         self,
-        input_data: StandardizedValuationInput,
+        input_data: ValuationInputProtocol,
         dcf_valuation: DCFValuation,
     ) -> float:
         """
@@ -1307,7 +1310,7 @@ class ValuationEngine:
 
     def _generate_key_assumptions(
         self,
-        input_data: StandardizedValuationInput,
+        input_data: ValuationInputProtocol,
         dcf_valuation: DCFValuation,
     ) -> dict[str, str]:
         """Generate dictionary of key assumptions used in valuation."""
@@ -1327,7 +1330,7 @@ class ValuationEngine:
 
     def _generate_risk_factors(
         self,
-        input_data: StandardizedValuationInput,
+        input_data: ValuationInputProtocol,
         dcf_valuation: DCFValuation,
         graham_screen: GrahamDefensiveCriteria,
     ) -> list[str]:
@@ -1405,7 +1408,9 @@ class ValuationEngine:
             use_flexible,
         )
 
-        # Get input from AI extractor
+        # Get input from AI extractor. Either branch yields a concrete type that
+        # satisfies ValuationInputProtocol; annotate so the two assignments unify.
+        input_data: ValuationInputProtocol
         if use_flexible:
             flexible_data = await self.ai_extractor.extract_flexible(
                 ticker,

@@ -10,7 +10,9 @@ The schema follows CFA standards:
 - Projections: 5 years explicit + terminal value
 """
 
+from collections.abc import Sequence
 from datetime import datetime
+from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -580,3 +582,110 @@ class StandardizedValuationInput(BaseModel):
     ) -> list[HistoricalFinancials]:
         """Ensure historical data is sorted by fiscal year (most recent first)."""
         return sorted(v, key=lambda x: x.fiscal_year, reverse=True)
+
+
+class HistoricalFinancialsLike(Protocol):
+    """Read-only structural view of a single historical-year record.
+
+    Satisfied by both ``HistoricalFinancials`` (standardized input) and the
+    flexible extractor's ``HistoricalYear``, which expose the same fields with
+    looser (nullable) types.
+    """
+
+    @property
+    def fiscal_year(self) -> int: ...
+    @property
+    def revenue(self) -> float | None: ...
+    @property
+    def net_income(self) -> float | None: ...
+    @property
+    def eps(self) -> float | None: ...
+
+
+class ValuationInputProtocol(Protocol):
+    """Structural interface the ValuationEngine consumes.
+
+    Both ``StandardizedValuationInput`` (the AI-extraction contract) and the
+    ``FlexibleInputAdapter`` (which wraps the looser flexible-extraction model)
+    satisfy this protocol. Typing the engine methods against it lets either
+    concrete type flow through without ``arg-type`` errors, replacing the prior
+    duck-typing that mypy could not verify.
+
+    Members are read-only properties so concrete attributes with narrower types
+    (e.g. a required ``float`` where the protocol allows ``float | None``) remain
+    compatible.
+    """
+
+    # === Metadata ===
+    @property
+    def ticker(self) -> str: ...
+    @property
+    def company_name(self) -> str: ...
+    @property
+    def extraction_timestamp(self) -> datetime: ...
+    @property
+    def data_confidence_score(self) -> float: ...
+
+    # === Market position ===
+    @property
+    def current_price(self) -> float: ...
+    @property
+    def shares_outstanding(self) -> float: ...
+    @property
+    def market_cap(self) -> float: ...
+    @property
+    def enterprise_value(self) -> float: ...
+
+    # === Income statement ===
+    @property
+    def ttm_revenue(self) -> float: ...
+    @property
+    def ttm_eps(self) -> float: ...
+
+    # === Balance sheet ===
+    @property
+    def net_debt(self) -> float: ...
+    @property
+    def total_debt(self) -> float: ...
+    @property
+    def shareholders_equity(self) -> float: ...
+
+    # === Ratios ===
+    @property
+    def operating_margin(self) -> float: ...
+    @property
+    def roic(self) -> float | None: ...
+    @property
+    def debt_to_equity(self) -> float: ...
+    @property
+    def current_ratio(self) -> float: ...
+    @property
+    def interest_coverage(self) -> float | None: ...
+    @property
+    def pe_ratio(self) -> float | None: ...
+    @property
+    def price_to_book(self) -> float | None: ...
+    @property
+    def dividend_yield(self) -> float | None: ...
+
+    # === Growth ===
+    @property
+    def revenue_growth_5y_cagr(self) -> float | None: ...
+    @property
+    def earnings_growth_10y_cagr(self) -> float | None: ...
+
+    # === Risk parameters ===
+    @property
+    def beta(self) -> float | None: ...
+    @property
+    def risk_free_rate(self) -> float: ...
+    @property
+    def equity_risk_premium(self) -> float: ...
+
+    # === Historical data + quality flags ===
+    @property
+    def historical_financials(self) -> Sequence[HistoricalFinancialsLike]: ...
+    @property
+    def missing_fields(self) -> list[str]: ...
+    @property
+    def data_anomalies(self) -> list[str]: ...

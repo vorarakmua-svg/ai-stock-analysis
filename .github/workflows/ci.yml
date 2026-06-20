@@ -34,11 +34,9 @@ jobs:
       - name: Ruff format check
         run: ruff format --check app tests
 
-      # mypy stays informational until a dedicated typing pass clears the
-      # remaining ~13 errors (mostly the FlexibleInputAdapter duck-typing).
-      - name: mypy (app, informational)
+      # mypy is a blocking gate: the app package must stay type-clean.
+      - name: mypy (app)
         run: mypy app
-        continue-on-error: true
 
       - name: Pytest + coverage
         env:

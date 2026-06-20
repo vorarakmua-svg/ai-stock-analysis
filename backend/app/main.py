@@ -97,7 +97,9 @@ app = FastAPI(
 
 # Configure rate limiter
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+# slowapi's handler is typed for the narrower RateLimitExceeded rather than the
+# base Exception that Starlette's signature expects; the registration is correct.
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
 # Global exception handlers (domain -> status; catch-all hides internals)
 register_exception_handlers(app)
