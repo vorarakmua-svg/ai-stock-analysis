@@ -1408,7 +1408,9 @@ class ValuationEngine:
             use_flexible,
         )
 
-        # Get input from AI extractor
+        # Get input from AI extractor. Either branch yields a concrete type that
+        # satisfies ValuationInputProtocol; annotate so the two assignments unify.
+        input_data: ValuationInputProtocol
         if use_flexible:
             flexible_data = await self.ai_extractor.extract_flexible(
                 ticker,
