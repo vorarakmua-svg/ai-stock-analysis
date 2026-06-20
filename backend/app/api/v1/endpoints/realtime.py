@@ -7,7 +7,7 @@ Provides endpoints for:
 """
 
 import logging
-from typing import List, Literal
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Path, Query
 from pydantic import BaseModel, ConfigDict, Field
@@ -201,7 +201,7 @@ async def get_stock_price(
 
 @router.get(
     "/{ticker}/history",
-    response_model=List[OHLCVDataPoint],
+    response_model=list[OHLCVDataPoint],
     summary="Get Historical OHLCV Data",
     description="Retrieve historical OHLCV (Open, High, Low, Close, Volume) data for a stock.",
     responses={
@@ -271,7 +271,7 @@ async def get_stock_history(
         description="Time period for historical data",
         examples=["1mo", "3mo", "6mo", "1y", "5y"],
     ),
-) -> List[OHLCVDataPoint]:
+) -> list[OHLCVDataPoint]:
     """
     Get historical OHLCV data for a specific stock.
 

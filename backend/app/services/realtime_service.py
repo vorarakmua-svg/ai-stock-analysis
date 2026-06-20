@@ -7,9 +7,9 @@ with intelligent caching using diskcache to minimize API calls.
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import lru_cache
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal
 
 import diskcache
 import yfinance as yf
@@ -28,7 +28,7 @@ VALID_PERIODS: tuple[PeriodType, ...] = ("1mo", "3mo", "6mo", "1y", "5y")
 YFINANCE_TIMEOUT: float = 30.0
 
 # Market state mappings from yfinance
-MARKET_STATE_MAP: Dict[str, str] = {
+MARKET_STATE_MAP: dict[str, str] = {
     "PRE": "PRE",
     "PREPRE": "PRE",
     "REGULAR": "REGULAR",
@@ -133,7 +133,7 @@ def _safe_int(value: Any, default: int = 0) -> int:
         return default
 
 
-async def get_realtime_price(ticker: str) -> Dict[str, Any]:
+async def get_realtime_price(ticker: str) -> dict[str, Any]:
     """
     Get real-time price data for a stock ticker.
 
@@ -176,7 +176,7 @@ async def get_realtime_price(ticker: str) -> Dict[str, Any]:
 
     try:
         # Create ticker object and fetch data (run in thread pool to avoid blocking)
-        def fetch_ticker_info() -> Dict[str, Any]:
+        def fetch_ticker_info() -> dict[str, Any]:
             stock = yf.Ticker(ticker_upper)
             return stock.info
 
@@ -185,7 +185,7 @@ async def get_realtime_price(ticker: str) -> Dict[str, Any]:
                 asyncio.to_thread(fetch_ticker_info),
                 timeout=YFINANCE_TIMEOUT,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise DataFetchError(
                 f"Timeout fetching price data for '{ticker_upper}' after {YFINANCE_TIMEOUT}s"
             )
@@ -199,11 +199,11 @@ async def get_realtime_price(ticker: str) -> Dict[str, Any]:
 
         # Extract price data with safe conversions
         current_price = _safe_float(
-            info.get("regularMarketPrice")
-            or info.get("currentPrice")
-            or info.get("previousClose")
+            info.get("regularMarketPrice") or info.get("currentPrice") or info.get("previousClose")
         )
-        previous_close = _safe_float(info.get("regularMarketPreviousClose") or info.get("previousClose"))
+        previous_close = _safe_float(
+            info.get("regularMarketPreviousClose") or info.get("previousClose")
+        )
 
         # Calculate change
         change = current_price - previous_close if previous_close > 0 else 0.0
@@ -213,7 +213,7 @@ async def get_realtime_price(ticker: str) -> Dict[str, Any]:
         market_state = _normalize_market_state(info.get("marketState"))
 
         # Build response
-        price_data: Dict[str, Any] = {
+        price_data: dict[str, Any] = {
             "ticker": ticker_upper,
             "price": round(current_price, 2),
             "change": round(change, 2),
@@ -223,7 +223,7 @@ async def get_realtime_price(ticker: str) -> Dict[str, Any]:
             "low": round(_safe_float(info.get("regularMarketDayLow") or info.get("dayLow")), 2),
             "open": round(_safe_float(info.get("regularMarketOpen") or info.get("open")), 2),
             "previous_close": round(previous_close, 2),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "market_state": market_state,
         }
 
@@ -240,7 +240,7 @@ async def get_realtime_price(ticker: str) -> Dict[str, Any]:
         raise DataFetchError(f"Failed to fetch price data for '{ticker_upper}': {str(e)}")
 
 
-async def get_historical_data(ticker: str, period: PeriodType = "1y") -> List[Dict[str, Any]]:
+async def get_historical_data(ticker: str, period: PeriodType = "1y") -> list[dict[str, Any]]:
     """
     Get historical OHLCV data for a stock ticker.
 
@@ -279,11 +279,11 @@ async def get_historical_data(ticker: str, period: PeriodType = "1y") -> List[Di
 
     # Determine cache TTL based on period
     cache_ttl_map = {
-        "1mo": 30,      # 30 seconds for recent data
-        "3mo": 30,      # 30 seconds
-        "6mo": 300,     # 5 minutes
-        "1y": 300,      # 5 minutes
-        "5y": 3600,     # 1 hour for historical data
+        "1mo": 30,  # 30 seconds for recent data
+        "3mo": 30,  # 30 seconds
+        "6mo": 300,  # 5 minutes
+        "1y": 300,  # 5 minutes
+        "5y": 3600,  # 1 hour for historical data
     }
     cache_ttl = cache_ttl_map.get(period, 300)
 
@@ -299,11 +299,11 @@ async def get_historical_data(ticker: str, period: PeriodType = "1y") -> List[Di
     try:
         # Determine interval based on period for optimal granularity
         interval_map = {
-            "1mo": "1d",    # Daily for 1 month
-            "3mo": "1d",    # Daily for 3 months
-            "6mo": "1d",    # Daily for 6 months
-            "1y": "1d",     # Daily for 1 year
-            "5y": "1wk",    # Weekly for 5 years
+            "1mo": "1d",  # Daily for 1 month
+            "3mo": "1d",  # Daily for 3 months
+            "6mo": "1d",  # Daily for 6 months
+            "1y": "1d",  # Daily for 1 year
+            "5y": "1wk",  # Weekly for 5 years
         }
         interval = interval_map.get(period, "1d")
 
@@ -317,7 +317,7 @@ async def get_historical_data(ticker: str, period: PeriodType = "1y") -> List[Di
                 asyncio.to_thread(fetch_history),
                 timeout=YFINANCE_TIMEOUT,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise DataFetchError(
                 f"Timeout fetching historical data for '{ticker_upper}' after {YFINANCE_TIMEOUT}s"
             )
@@ -332,7 +332,7 @@ async def get_historical_data(ticker: str, period: PeriodType = "1y") -> List[Di
                     asyncio.to_thread(fetch_info),
                     timeout=YFINANCE_TIMEOUT,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 raise DataFetchError(
                     f"Timeout validating ticker '{ticker_upper}' after {YFINANCE_TIMEOUT}s"
                 )
@@ -344,7 +344,7 @@ async def get_historical_data(ticker: str, period: PeriodType = "1y") -> List[Di
             return []
 
         # Convert to list of dicts with Unix timestamps
-        historical_data: List[Dict[str, Any]] = []
+        historical_data: list[dict[str, Any]] = []
         for index, row in hist.iterrows():
             # Convert pandas Timestamp to Unix timestamp (seconds)
             unix_timestamp = int(index.timestamp())
@@ -361,9 +361,7 @@ async def get_historical_data(ticker: str, period: PeriodType = "1y") -> List[Di
 
         # Cache the result
         cache.set(cache_key, historical_data, expire=cache_ttl)
-        logger.debug(
-            f"Cached historical data for {ticker_upper} ({period}) with TTL={cache_ttl}s"
-        )
+        logger.debug(f"Cached historical data for {ticker_upper} ({period}) with TTL={cache_ttl}s")
 
         return historical_data
 
@@ -373,9 +371,7 @@ async def get_historical_data(ticker: str, period: PeriodType = "1y") -> List[Di
         raise
     except Exception as e:
         logger.error(f"Error fetching historical data for {ticker_upper}: {e}")
-        raise DataFetchError(
-            f"Failed to fetch historical data for '{ticker_upper}': {str(e)}"
-        )
+        raise DataFetchError(f"Failed to fetch historical data for '{ticker_upper}': {str(e)}")
 
 
 def clear_price_cache(ticker: str | None = None) -> int:
@@ -414,7 +410,7 @@ def clear_price_cache(ticker: str | None = None) -> int:
     return cleared_count
 
 
-async def is_market_open() -> Dict[str, Any]:
+async def is_market_open() -> dict[str, Any]:
     """
     Check if the US stock market is currently open.
 
@@ -439,19 +435,19 @@ async def is_market_open() -> Dict[str, Any]:
         return {
             "is_open": market_state == "REGULAR",
             "market_state": market_state,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning(f"Timeout checking market status after {YFINANCE_TIMEOUT}s")
         return {
             "is_open": False,
             "market_state": "UNKNOWN",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
     except Exception as e:
         logger.warning(f"Failed to check market status: {e}")
         return {
             "is_open": False,
             "market_state": "UNKNOWN",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }

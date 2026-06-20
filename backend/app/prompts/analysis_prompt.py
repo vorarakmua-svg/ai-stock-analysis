@@ -16,7 +16,7 @@ The AI DOES NOT:
 """
 
 import json
-from typing import Any, Dict
+from typing import Any
 
 from app.models.analysis import WarrenBuffettAnalysis
 
@@ -310,9 +310,7 @@ def _build_graham_screen_details(graham_screen: Any) -> str:
     # Criterion 5: Earnings Growth
     status = "PASS" if graham_screen.earnings_growth else "FAIL"
     growth_str = (
-        f"{graham_screen.eps_10y_growth:.1%}"
-        if graham_screen.eps_10y_growth is not None
-        else "N/A"
+        f"{graham_screen.eps_10y_growth:.1%}" if graham_screen.eps_10y_growth is not None else "N/A"
     )
     lines.append(f"5. Earnings Growth (>33% over 10 years): {status}")
     lines.append(f"   10Y EPS Growth: {growth_str}")
@@ -420,7 +418,8 @@ def build_analysis_prompt(
         company_name=valuation_result.company_name,
         sector=extraction_data.sector,
         industry=extraction_data.industry,
-        business_description=business_description or f"{valuation_result.company_name} operates in the {extraction_data.industry} industry within the {extraction_data.sector} sector.",
+        business_description=business_description
+        or f"{valuation_result.company_name} operates in the {extraction_data.industry} industry within the {extraction_data.sector} sector.",
         current_price=valuation_result.current_price,
         market_cap=valuation_result.market_cap,
         enterprise_value=valuation_result.enterprise_value,
@@ -459,7 +458,9 @@ def build_analysis_prompt(
         dividend_yield=_format_optional_metric(extraction_data.dividend_yield),
         graham_passed=graham_screen.criteria_passed,
         graham_screen_details=_build_graham_screen_details(graham_screen),
-        financial_history_table=_build_financial_history_table(extraction_data.historical_financials),
+        financial_history_table=_build_financial_history_table(
+            extraction_data.historical_financials
+        ),
         key_assumptions=_build_key_assumptions(dcf),
         schema_json=get_analysis_schema_json(),
     )

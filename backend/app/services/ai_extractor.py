@@ -26,8 +26,8 @@ from typing import Any
 from app.config import get_settings
 from app.core.cache_manager import ExtractionCache, get_extraction_cache
 from app.core.data_loader import load_stock_json
-from app.models.valuation_input import StandardizedValuationInput
 from app.models.flexible_input import FlexibleValuationInput
+from app.models.valuation_input import StandardizedValuationInput
 from app.prompts.extraction_prompt import SYSTEM_PROMPT, build_user_prompt
 from app.prompts.extraction_prompt_v2 import (
     FLEXIBLE_SYSTEM_PROMPT,
@@ -130,9 +130,7 @@ class AIExtractor:
         settings = get_settings()
 
         if not settings.GOOGLE_API_KEY:
-            raise ValueError(
-                "GOOGLE_API_KEY is not configured. Please set it in .env file."
-            )
+            raise ValueError("GOOGLE_API_KEY is not configured. Please set it in .env file.")
 
         # LLM provider abstraction (system prompts are passed per-call below).
         self.provider = provider or get_llm_provider()
@@ -177,7 +175,7 @@ class AIExtractor:
             "company_name": stock_data.get("company_name", ""),
             "collected_at": stock_data.get("collected_at", ""),
         }
-        
+
         def get_size(d):
             return len(json.dumps(d))
 
@@ -216,9 +214,7 @@ class AIExtractor:
                 historical = calc_metrics["historical"]
                 # Get most recent 5 years
                 sorted_years = sorted(historical.keys(), reverse=True)[:5]
-                calc_metrics["historical"] = {
-                    year: historical[year] for year in sorted_years
-                }
+                calc_metrics["historical"] = {year: historical[year] for year in sorted_years}
             truncated["calculated_metrics"] = calc_metrics
             logger.debug(f"Size - calculated_metrics: {get_size(calc_metrics)}")
 
@@ -226,28 +222,48 @@ class AIExtractor:
         if "financials_annual" in stock_data:
             annual = stock_data["financials_annual"]
             sorted_years = sorted(annual.keys(), reverse=True)[:5]
-            
+
             # Filter for essential fields to save tokens
             ESSENTIAL_FIELDS = {
-                "Net Revenue", "Total Revenue", "Gross Profit", "Operating Income",
-                "Net Income", "EPS Basic", "EPS Diluted", "Operating Cash Flow",
-                "Investing Cash Flow", "Financing Cash Flow", "Capital Expenditures",
-                "Free Cash Flow", "Total Assets", "Current Assets", "Total Liabilities",
-                "Current Liabilities", "Total Stockholders Equity", "Long-Term Debt",
-                "Total Debt", "Cash and Cash Equivalents", "Stock Repurchases",
-                "Dividends Paid", "R&D Expense", "SG&A Expense", "Depreciation",
-                "Stock-Based Compensation", "Weighted Avg Shares Diluted"
+                "Net Revenue",
+                "Total Revenue",
+                "Gross Profit",
+                "Operating Income",
+                "Net Income",
+                "EPS Basic",
+                "EPS Diluted",
+                "Operating Cash Flow",
+                "Investing Cash Flow",
+                "Financing Cash Flow",
+                "Capital Expenditures",
+                "Free Cash Flow",
+                "Total Assets",
+                "Current Assets",
+                "Total Liabilities",
+                "Current Liabilities",
+                "Total Stockholders Equity",
+                "Long-Term Debt",
+                "Total Debt",
+                "Cash and Cash Equivalents",
+                "Stock Repurchases",
+                "Dividends Paid",
+                "R&D Expense",
+                "SG&A Expense",
+                "Depreciation",
+                "Stock-Based Compensation",
+                "Weighted Avg Shares Diluted",
             }
-            
+
             truncated_annual = {}
             for year in sorted_years:
                 year_data = annual[year]
                 filtered_year = {
-                    k: v for k, v in year_data.items() 
+                    k: v
+                    for k, v in year_data.items()
                     if k in ESSENTIAL_FIELDS or k in ["fiscal_year", "filed_date", "period_end"]
                 }
                 truncated_annual[year] = filtered_year
-                
+
             truncated["financials_annual"] = truncated_annual
             logger.debug(f"Size - financials_annual (filtered): {get_size(truncated_annual)}")
 
@@ -255,7 +271,7 @@ class AIExtractor:
         if "yahoo_financials" in stock_data:
             yahoo = stock_data["yahoo_financials"]
             truncated["yahoo_financials"] = {}
-            
+
             y_sizes = {}
 
             # Income statement - quarterly (last 8 quarters)
@@ -265,7 +281,9 @@ class AIExtractor:
                 truncated["yahoo_financials"]["income_statement_quarterly"] = {
                     q: quarterly_income[q] for q in sorted_quarters
                 }
-                y_sizes["income_q"] = get_size(truncated["yahoo_financials"]["income_statement_quarterly"])
+                y_sizes["income_q"] = get_size(
+                    truncated["yahoo_financials"]["income_statement_quarterly"]
+                )
 
             # Income statement - annual (last 5 years)
             if "income_statement_annual" in yahoo:
@@ -274,7 +292,9 @@ class AIExtractor:
                 truncated["yahoo_financials"]["income_statement_annual"] = {
                     y: annual_income[y] for y in sorted_years
                 }
-                y_sizes["income_a"] = get_size(truncated["yahoo_financials"]["income_statement_annual"])
+                y_sizes["income_a"] = get_size(
+                    truncated["yahoo_financials"]["income_statement_annual"]
+                )
 
             # Balance sheet - quarterly (last 4 quarters)
             if "balance_sheet_quarterly" in yahoo:
@@ -296,26 +316,36 @@ class AIExtractor:
 
             # Cash flow - quarterly (last 8 quarters)
             # Support both naming conventions: cash_flow_quarterly and cash_flow_statement_quarterly
-            quarterly_cf_key = "cash_flow_quarterly" if "cash_flow_quarterly" in yahoo else "cash_flow_statement_quarterly"
+            quarterly_cf_key = (
+                "cash_flow_quarterly"
+                if "cash_flow_quarterly" in yahoo
+                else "cash_flow_statement_quarterly"
+            )
             if quarterly_cf_key in yahoo:
                 quarterly_cf = yahoo[quarterly_cf_key]
                 sorted_quarters = sorted(quarterly_cf.keys(), reverse=True)[:8]
                 truncated["yahoo_financials"]["cash_flow_statement_quarterly"] = {
                     q: quarterly_cf[q] for q in sorted_quarters
                 }
-                y_sizes["cf_q"] = get_size(truncated["yahoo_financials"]["cash_flow_statement_quarterly"])
+                y_sizes["cf_q"] = get_size(
+                    truncated["yahoo_financials"]["cash_flow_statement_quarterly"]
+                )
 
             # Cash flow - annual (last 5 years)
             # Support both naming conventions: cash_flow_annual and cash_flow_statement_annual
-            annual_cf_key = "cash_flow_annual" if "cash_flow_annual" in yahoo else "cash_flow_statement_annual"
+            annual_cf_key = (
+                "cash_flow_annual" if "cash_flow_annual" in yahoo else "cash_flow_statement_annual"
+            )
             if annual_cf_key in yahoo:
                 annual_cf = yahoo[annual_cf_key]
                 sorted_years = sorted(annual_cf.keys(), reverse=True)[:5]
                 truncated["yahoo_financials"]["cash_flow_statement_annual"] = {
                     y: annual_cf[y] for y in sorted_years
                 }
-                y_sizes["cf_a"] = get_size(truncated["yahoo_financials"]["cash_flow_statement_annual"])
-            
+                y_sizes["cf_a"] = get_size(
+                    truncated["yahoo_financials"]["cash_flow_statement_annual"]
+                )
+
             logger.debug(f"Size - yahoo_financials: {y_sizes}")
 
         return truncated
@@ -431,9 +461,7 @@ class AIExtractor:
                     logger.info("Retrying in %.1f seconds...", delay)
                     await asyncio.sleep(delay)
 
-        raise GeminiAPIError(
-            f"All {self.MAX_RETRIES} LLM call attempts failed: {last_error}"
-        )
+        raise GeminiAPIError(f"All {self.MAX_RETRIES} LLM call attempts failed: {last_error}")
 
     def _parse_response(self, response: str) -> StandardizedValuationInput:
         """
@@ -530,6 +558,7 @@ class AIExtractor:
         Returns:
             Dict with formatted JSON strings for each section
         """
+
         def safe_json(data: Any, default: str = "{}") -> str:
             """Safely convert data to JSON string."""
             if data is None:
@@ -548,12 +577,10 @@ class AIExtractor:
             "calculated_metrics_json": safe_json(stock_data.get("calculated_metrics")),
             "financials_annual_json": safe_json(stock_data.get("financials_annual")),
             "income_quarterly_json": safe_json(
-                yahoo.get("income_statement_quarterly")
-                or yahoo.get("income_statement_annual")
+                yahoo.get("income_statement_quarterly") or yahoo.get("income_statement_annual")
             ),
             "balance_sheet_json": safe_json(
-                yahoo.get("balance_sheet_quarterly")
-                or yahoo.get("balance_sheet_annual")
+                yahoo.get("balance_sheet_quarterly") or yahoo.get("balance_sheet_annual")
             ),
             "cashflow_quarterly_json": safe_json(
                 yahoo.get("cash_flow_statement_quarterly")
@@ -767,18 +794,11 @@ class AIExtractor:
             market_data_json=safe_json(market_data),
             company_info_json=safe_json(stock_data.get("company_info")),
             cashflow_quarterly_json=safe_json(
-                yahoo.get("cash_flow_statement_quarterly")
-                or yahoo.get("cash_flow_quarterly")
+                yahoo.get("cash_flow_statement_quarterly") or yahoo.get("cash_flow_quarterly")
             ),
-            income_quarterly_json=safe_json(
-                yahoo.get("income_statement_quarterly")
-            ),
-            income_annual_json=safe_json(
-                yahoo.get("income_statement_annual")
-            ),
-            balance_sheet_json=safe_json(
-                yahoo.get("balance_sheet_quarterly")
-            ),
+            income_quarterly_json=safe_json(yahoo.get("income_statement_quarterly")),
+            income_annual_json=safe_json(yahoo.get("income_statement_annual")),
+            balance_sheet_json=safe_json(yahoo.get("balance_sheet_quarterly")),
             financials_annual_json=safe_json(truncated_data.get("financials_annual")),
         )
 

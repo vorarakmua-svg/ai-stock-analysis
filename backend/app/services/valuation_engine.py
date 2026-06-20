@@ -22,15 +22,15 @@ import hashlib
 import logging
 import math
 import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from diskcache import Cache
 
 from app.config import get_settings
-from app.models.valuation_input import StandardizedValuationInput
 from app.models.flexible_input import FlexibleValuationInput
+from app.models.valuation_input import StandardizedValuationInput
 from app.models.valuation_output import (
     DCFScenario,
     DCFValuation,
@@ -173,7 +173,7 @@ class FlexibleInputAdapter:
         return self.data.ttm_income_statement.eps or 0.0
 
     @property
-    def ttm_interest_expense(self) -> Optional[float]:
+    def ttm_interest_expense(self) -> float | None:
         return self.data.ttm_income_statement.interest_expense
 
     # === Cash Flow ===
@@ -283,7 +283,7 @@ class FlexibleInputAdapter:
         return 0.0
 
     @property
-    def interest_coverage(self) -> Optional[float]:
+    def interest_coverage(self) -> float | None:
         return self.data.leverage_ratios.interest_coverage
 
     # === Liquidity Ratios ===
@@ -297,32 +297,32 @@ class FlexibleInputAdapter:
 
     # === Valuation Multiples ===
     @property
-    def pe_ratio(self) -> Optional[float]:
+    def pe_ratio(self) -> float | None:
         return self.data.valuation_multiples.pe_ratio
 
     @property
-    def forward_pe(self) -> Optional[float]:
+    def forward_pe(self) -> float | None:
         return self.data.valuation_multiples.forward_pe
 
     @property
-    def ev_to_ebitda(self) -> Optional[float]:
+    def ev_to_ebitda(self) -> float | None:
         return self.data.valuation_multiples.ev_to_ebitda
 
     @property
-    def price_to_book(self) -> Optional[float]:
+    def price_to_book(self) -> float | None:
         return self.data.valuation_multiples.price_to_book
 
     @property
-    def fcf_yield(self) -> Optional[float]:
+    def fcf_yield(self) -> float | None:
         return self.data.valuation_multiples.fcf_yield
 
     @property
-    def dividend_yield(self) -> Optional[float]:
+    def dividend_yield(self) -> float | None:
         return self.data.dividends.dividend_yield
 
     # === Growth Rates ===
     @property
-    def revenue_growth_5y_cagr(self) -> Optional[float]:
+    def revenue_growth_5y_cagr(self) -> float | None:
         # Try to get from growth_rates, or calculate from historical
         if self.data.growth_rates.revenue_growth_5y_cagr is not None:
             return self.data.growth_rates.revenue_growth_5y_cagr
@@ -341,20 +341,20 @@ class FlexibleInputAdapter:
         return self.data.growth_rates.revenue_growth_1y or 0.05
 
     @property
-    def revenue_growth_10y_cagr(self) -> Optional[float]:
+    def revenue_growth_10y_cagr(self) -> float | None:
         return self.data.growth_rates.revenue_growth_10y_cagr
 
     @property
-    def earnings_growth_5y_cagr(self) -> Optional[float]:
+    def earnings_growth_5y_cagr(self) -> float | None:
         return self.data.growth_rates.earnings_growth_5y_cagr
 
     @property
-    def earnings_growth_10y_cagr(self) -> Optional[float]:
+    def earnings_growth_10y_cagr(self) -> float | None:
         return None  # Calculate from historical if needed
 
     # === Risk Parameters ===
     @property
-    def beta(self) -> Optional[float]:
+    def beta(self) -> float | None:
         return self.data.risk_parameters.beta
 
     @property
@@ -372,7 +372,7 @@ class FlexibleInputAdapter:
 
     # === Data Quality ===
     @property
-    def missing_fields(self) -> List[str]:
+    def missing_fields(self) -> list[str]:
         """Get list of truly missing fields (excluding those we can calculate)."""
         reported_missing = self.data.data_quality.fields_missing
 
@@ -391,14 +391,16 @@ class FlexibleInputAdapter:
 
         # Filter out calculable fields from missing list
         truly_missing = [
-            f for f in reported_missing
-            if f.lower().replace("_", "") not in {cf.lower().replace("_", "") for cf in calculable_fields}
+            f
+            for f in reported_missing
+            if f.lower().replace("_", "")
+            not in {cf.lower().replace("_", "") for cf in calculable_fields}
         ]
 
         return truly_missing
 
     @property
-    def estimated_fields(self) -> List[str]:
+    def estimated_fields(self) -> list[str]:
         """Get list of estimated fields, including calculated income statement fields."""
         estimated = list(self.data.data_quality.fields_estimated)
 
@@ -407,13 +409,16 @@ class FlexibleInputAdapter:
             estimated.append("gross_profit (calculated from gross_margin)")
         if not self.data.ttm_income_statement.cost_of_revenue and self.ttm_cost_of_revenue > 0:
             estimated.append("cost_of_revenue (calculated)")
-        if not self.data.ttm_income_statement.operating_expenses and self.ttm_operating_expenses > 0:
+        if (
+            not self.data.ttm_income_statement.operating_expenses
+            and self.ttm_operating_expenses > 0
+        ):
             estimated.append("operating_expenses (calculated)")
 
         return estimated
 
     @property
-    def data_anomalies(self) -> List[str]:
+    def data_anomalies(self) -> list[str]:
         return self.data.data_quality.data_anomalies
 
 
@@ -438,7 +443,7 @@ class ValuationCache:
     cache invalidation when source data changes.
     """
 
-    def __init__(self, cache_dir: Optional[Path] = None) -> None:
+    def __init__(self, cache_dir: Path | None = None) -> None:
         """
         Initialize the valuation cache.
 
@@ -471,7 +476,7 @@ class ValuationCache:
         self,
         ticker: str,
         extraction_timestamp: str,
-    ) -> Optional[ValuationResult]:
+    ) -> ValuationResult | None:
         """
         Retrieve cached valuation for a ticker.
 
@@ -574,42 +579,42 @@ class ValuationEngine:
     # Credit spread table based on interest coverage ratio
     # Maps interest coverage to credit spread (as decimal)
     CREDIT_SPREAD_TABLE = [
-        (0, 0.05),      # IC <= 0: 5.0% spread (distressed)
-        (1.5, 0.04),    # IC < 1.5: 4.0% spread (CCC)
-        (3.0, 0.03),    # IC < 3.0: 3.0% spread (B)
-        (5.0, 0.02),    # IC < 5.0: 2.0% spread (BB)
-        (8.0, 0.015),   # IC < 8.0: 1.5% spread (BBB)
-        (12.0, 0.01),   # IC < 12.0: 1.0% spread (A)
+        (0, 0.05),  # IC <= 0: 5.0% spread (distressed)
+        (1.5, 0.04),  # IC < 1.5: 4.0% spread (CCC)
+        (3.0, 0.03),  # IC < 3.0: 3.0% spread (B)
+        (5.0, 0.02),  # IC < 5.0: 2.0% spread (BB)
+        (8.0, 0.015),  # IC < 8.0: 1.5% spread (BBB)
+        (12.0, 0.01),  # IC < 12.0: 1.0% spread (A)
         (float("inf"), 0.007),  # IC >= 12.0: 0.7% spread (AA/AAA)
     ]
 
     # Graham Defensive Screen Thresholds (from "The Intelligent Investor")
     GRAHAM_MIN_REVENUE = 700_000_000  # $700M minimum revenue for adequate size
-    GRAHAM_MIN_CURRENT_RATIO = 2.0    # Minimum current ratio for financial strength
-    GRAHAM_MIN_POSITIVE_YEARS = 10    # Years of positive earnings required
-    GRAHAM_MIN_DIVIDEND_YEARS = 20    # Years of dividends required
+    GRAHAM_MIN_CURRENT_RATIO = 2.0  # Minimum current ratio for financial strength
+    GRAHAM_MIN_POSITIVE_YEARS = 10  # Years of positive earnings required
+    GRAHAM_MIN_DIVIDEND_YEARS = 20  # Years of dividends required
     GRAHAM_MIN_EPS_GROWTH_PCT = 33.0  # Minimum EPS growth over 10 years (33%)
-    GRAHAM_MAX_PE_RATIO = 15.0        # Maximum P/E ratio for moderate valuation
-    GRAHAM_MAX_PB_RATIO = 1.5         # Maximum P/B ratio
-    GRAHAM_MAX_PE_PB_PRODUCT = 22.5   # Maximum P/E * P/B product
-    GRAHAM_MIN_CRITERIA_PASS = 5      # Minimum criteria to pass defensive screen
-    GRAHAM_TOTAL_CRITERIA = 7         # Total number of criteria in defensive screen
+    GRAHAM_MAX_PE_RATIO = 15.0  # Maximum P/E ratio for moderate valuation
+    GRAHAM_MAX_PB_RATIO = 1.5  # Maximum P/B ratio
+    GRAHAM_MAX_PE_PB_PRODUCT = 22.5  # Maximum P/E * P/B product
+    GRAHAM_MIN_CRITERIA_PASS = 5  # Minimum criteria to pass defensive screen
+    GRAHAM_TOTAL_CRITERIA = 7  # Total number of criteria in defensive screen
 
     # Composite Valuation Weights
-    COMPOSITE_DCF_WEIGHT = 0.60       # 60% weight for DCF in composite
-    COMPOSITE_GRAHAM_WEIGHT = 0.40    # 40% weight for Graham Number in composite
+    COMPOSITE_DCF_WEIGHT = 0.60  # 60% weight for DCF in composite
+    COMPOSITE_GRAHAM_WEIGHT = 0.40  # 40% weight for Graham Number in composite
 
     # Valuation Verdict Thresholds (as decimals)
-    VERDICT_SIGNIFICANTLY_UNDERVALUED = 0.40   # > 40% upside
-    VERDICT_UNDERVALUED = 0.15                 # > 15% upside
-    VERDICT_FAIRLY_VALUED_UPPER = 0.15         # Upper bound for fairly valued
-    VERDICT_FAIRLY_VALUED_LOWER = -0.15        # Lower bound for fairly valued
-    VERDICT_OVERVALUED = -0.40                 # >= -40% upside (i.e., <= 40% downside)
+    VERDICT_SIGNIFICANTLY_UNDERVALUED = 0.40  # > 40% upside
+    VERDICT_UNDERVALUED = 0.15  # > 15% upside
+    VERDICT_FAIRLY_VALUED_UPPER = 0.15  # Upper bound for fairly valued
+    VERDICT_FAIRLY_VALUED_LOWER = -0.15  # Lower bound for fairly valued
+    VERDICT_OVERVALUED = -0.40  # >= -40% upside (i.e., <= 40% downside)
 
     def __init__(
         self,
-        cache: Optional[ValuationCache] = None,
-        ai_extractor: Optional[AIExtractor] = None,
+        cache: ValuationCache | None = None,
+        ai_extractor: AIExtractor | None = None,
     ) -> None:
         """
         Initialize the valuation engine.
@@ -632,7 +637,7 @@ class ValuationEngine:
             self._ai_extractor = get_ai_extractor()
         return self._ai_extractor
 
-    def _get_credit_spread(self, interest_coverage: Optional[float]) -> float:
+    def _get_credit_spread(self, interest_coverage: float | None) -> float:
         """
         Determine credit spread based on interest coverage ratio.
 
@@ -663,7 +668,7 @@ class ValuationEngine:
     def calculate_wacc(
         self,
         input_data: StandardizedValuationInput,
-    ) -> Tuple[float, Dict[str, Any]]:
+    ) -> tuple[float, dict[str, Any]]:
         """
         Calculate Weighted Average Cost of Capital (WACC).
 
@@ -689,9 +694,7 @@ class ValuationEngine:
         """
         # Cost of Equity using CAPM
         beta = input_data.beta if input_data.beta is not None else 1.0
-        cost_of_equity = (
-            input_data.risk_free_rate + beta * input_data.equity_risk_premium
-        )
+        cost_of_equity = input_data.risk_free_rate + beta * input_data.equity_risk_premium
 
         # Cost of Debt
         credit_spread = self._get_credit_spread(input_data.interest_coverage)
@@ -786,10 +789,10 @@ class ValuationEngine:
         roic = input_data.roic if (input_data.roic is not None and input_data.roic > 0) else 0.10
 
         # Project financials
-        projected_revenue: List[float] = []
-        projected_ebit: List[float] = []
-        projected_nopat: List[float] = []
-        projected_fcf: List[float] = []
+        projected_revenue: list[float] = []
+        projected_ebit: list[float] = []
+        projected_nopat: list[float] = []
+        projected_fcf: list[float] = []
 
         current_revenue = base_revenue
 
@@ -830,10 +833,7 @@ class ValuationEngine:
         terminal_value = terminal_fcf / (wacc - effective_terminal_growth)
 
         # Present value calculations
-        pv_explicit = sum(
-            fcf / ((1 + wacc) ** (i + 1))
-            for i, fcf in enumerate(projected_fcf)
-        )
+        pv_explicit = sum(fcf / ((1 + wacc) ** (i + 1)) for i, fcf in enumerate(projected_fcf))
         pv_terminal = terminal_value / ((1 + wacc) ** projection_years)
 
         # Enterprise value to equity value
@@ -948,8 +948,7 @@ class ValuationEngine:
             "optimistic": 0.25,
         }
         weighted_iv = sum(
-            scenarios[name].intrinsic_value_per_share * weight
-            for name, weight in weights.items()
+            scenarios[name].intrinsic_value_per_share * weight for name, weight in weights.items()
         )
 
         # Sensitivity analysis: WACC +/- 1%
@@ -993,7 +992,7 @@ class ValuationEngine:
         }
 
         return DCFValuation(
-            calculation_timestamp=datetime.now(timezone.utc),
+            calculation_timestamp=datetime.now(UTC),
             methodology="Discounted Cash Flow (FCFF)",
             risk_free_rate=wacc_components["risk_free_rate"],
             beta=wacc_components["beta"],
@@ -1110,7 +1109,8 @@ class ValuationEngine:
 
         # Criterion 3: Earnings Stability (10 years positive earnings)
         years_positive = sum(
-            1 for h in input_data.historical_financials
+            1
+            for h in input_data.historical_financials
             if h.net_income is not None and h.net_income > 0
         )
         earnings_stability = years_positive >= self.GRAHAM_MIN_POSITIVE_YEARS
@@ -1122,7 +1122,7 @@ class ValuationEngine:
         dividend_record = has_dividends
 
         # Criterion 5: Earnings Growth (33% over 10 years)
-        eps_10y_growth: Optional[float] = None
+        eps_10y_growth: float | None = None
         if len(input_data.historical_financials) >= 10:
             old_eps = input_data.historical_financials[-1].eps
             new_eps = input_data.historical_financials[0].eps
@@ -1132,7 +1132,9 @@ class ValuationEngine:
             # Use CAGR to estimate total growth: (1 + CAGR)^10 - 1
             eps_10y_growth = (1 + input_data.earnings_growth_10y_cagr) ** 10 - 1
 
-        earnings_growth = eps_10y_growth is not None and eps_10y_growth >= (self.GRAHAM_MIN_EPS_GROWTH_PCT / 100)
+        earnings_growth = eps_10y_growth is not None and eps_10y_growth >= (
+            self.GRAHAM_MIN_EPS_GROWTH_PCT / 100
+        )
 
         # Criterion 6: Moderate P/E (P/E <= 15)
         pe = input_data.pe_ratio
@@ -1152,15 +1154,17 @@ class ValuationEngine:
 
         # Count passed criteria
         # For criteria 6 and 7, count if either individual or combined passes
-        passed_count = sum([
-            adequate_size,
-            strong_financial,
-            earnings_stability,
-            dividend_record,
-            earnings_growth,
-            moderate_pe or graham_product_passes,  # P/E or product test
-            moderate_pb or graham_product_passes,  # P/B or product test
-        ])
+        passed_count = sum(
+            [
+                adequate_size,
+                strong_financial,
+                earnings_stability,
+                dividend_record,
+                earnings_growth,
+                moderate_pe or graham_product_passes,  # P/E or product test
+                moderate_pb or graham_product_passes,  # P/B or product test
+            ]
+        )
 
         passes_screen = passed_count >= self.GRAHAM_MIN_CRITERIA_PASS
 
@@ -1197,7 +1201,7 @@ class ValuationEngine:
         self,
         dcf_weighted_value: float,
         graham_number: float,
-    ) -> Tuple[float, str]:
+    ) -> tuple[float, str]:
         """
         Calculate composite intrinsic value from multiple methods.
 
@@ -1213,8 +1217,10 @@ class ValuationEngine:
             Tuple of (composite value, methodology string)
         """
         if graham_number > 0:
-            composite = (dcf_weighted_value * self.COMPOSITE_DCF_WEIGHT +
-                        graham_number * self.COMPOSITE_GRAHAM_WEIGHT)
+            composite = (
+                dcf_weighted_value * self.COMPOSITE_DCF_WEIGHT
+                + graham_number * self.COMPOSITE_GRAHAM_WEIGHT
+            )
             methodology = f"{int(self.COMPOSITE_DCF_WEIGHT * 100)}% DCF + {int(self.COMPOSITE_GRAHAM_WEIGHT * 100)}% Graham Number"
         else:
             composite = dcf_weighted_value
@@ -1295,11 +1301,7 @@ class ValuationEngine:
             consistency_score = 0.5
 
         # Weighted average
-        confidence = (
-            base_score * 0.50 +
-            history_score * 0.25 +
-            consistency_score * 0.25
-        )
+        confidence = base_score * 0.50 + history_score * 0.25 + consistency_score * 0.25
 
         return min(max(confidence, 0.0), 1.0)
 
@@ -1307,7 +1309,7 @@ class ValuationEngine:
         self,
         input_data: StandardizedValuationInput,
         dcf_valuation: DCFValuation,
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """Generate dictionary of key assumptions used in valuation."""
         return {
             "risk_free_rate": f"{dcf_valuation.risk_free_rate:.2%}",
@@ -1328,7 +1330,7 @@ class ValuationEngine:
         input_data: StandardizedValuationInput,
         dcf_valuation: DCFValuation,
         graham_screen: GrahamDefensiveCriteria,
-    ) -> List[str]:
+    ) -> list[str]:
         """Generate list of risk factors and warnings."""
         risks = []
 
@@ -1357,7 +1359,9 @@ class ValuationEngine:
 
         # Graham screen warnings
         if not graham_screen.passes_screen:
-            risks.append(f"Fails Graham defensive screen ({graham_screen.criteria_passed}/7 criteria)")
+            risks.append(
+                f"Fails Graham defensive screen ({graham_screen.criteria_passed}/7 criteria)"
+            )
 
         # Missing data warnings
         if input_data.missing_fields:
@@ -1464,7 +1468,7 @@ class ValuationEngine:
             result = ValuationResult(
                 ticker=input_data.ticker,
                 company_name=input_data.company_name,
-                calculation_timestamp=datetime.now(timezone.utc),
+                calculation_timestamp=datetime.now(UTC),
                 current_price=input_data.current_price,
                 market_cap=input_data.market_cap,
                 enterprise_value=input_data.enterprise_value,
@@ -1518,7 +1522,7 @@ class ValuationEngine:
 
 
 # Singleton instance for dependency injection
-_engine_instance: Optional[ValuationEngine] = None
+_engine_instance: ValuationEngine | None = None
 _engine_lock = threading.Lock()
 
 

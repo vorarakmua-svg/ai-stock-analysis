@@ -11,7 +11,6 @@ The schema follows CFA standards:
 """
 
 from datetime import datetime
-from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -52,7 +51,7 @@ class HistoricalFinancials(BaseModel):
         ...,
         description="Net income attributable to shareholders",
     )
-    free_cash_flow: Optional[float] = Field(
+    free_cash_flow: float | None = Field(
         None,
         description="Free cash flow (OCF - CapEx)",
     )
@@ -186,7 +185,7 @@ class StandardizedValuationInput(BaseModel):
         ...,
         description="TTM operating income / EBIT",
     )
-    ttm_interest_expense: Optional[float] = Field(
+    ttm_interest_expense: float | None = Field(
         None,
         description="TTM interest expense (if applicable)",
     )
@@ -212,15 +211,15 @@ class StandardizedValuationInput(BaseModel):
     )
 
     # === Cash Flow Statement (TTM) ===
-    ttm_operating_cash_flow: Optional[float] = Field(
+    ttm_operating_cash_flow: float | None = Field(
         None,
         description="TTM cash flow from operations",
     )
-    ttm_capital_expenditures: Optional[float] = Field(
+    ttm_capital_expenditures: float | None = Field(
         None,
         description="TTM capital expenditures (positive value)",
     )
-    ttm_free_cash_flow: Optional[float] = Field(
+    ttm_free_cash_flow: float | None = Field(
         None,
         description="TTM free cash flow (OCF - CapEx)",
     )
@@ -228,15 +227,15 @@ class StandardizedValuationInput(BaseModel):
         ...,
         description="TTM depreciation and amortization",
     )
-    ttm_stock_based_compensation: Optional[float] = Field(
+    ttm_stock_based_compensation: float | None = Field(
         None,
         description="TTM stock-based compensation expense",
     )
-    ttm_dividends_paid: Optional[float] = Field(
+    ttm_dividends_paid: float | None = Field(
         None,
         description="TTM dividends paid (positive value)",
     )
-    ttm_share_repurchases: Optional[float] = Field(
+    ttm_share_repurchases: float | None = Field(
         None,
         description="TTM share repurchases (positive value)",
     )
@@ -247,7 +246,7 @@ class StandardizedValuationInput(BaseModel):
         description="Cash and cash equivalents",
         ge=0,
     )
-    short_term_investments: Optional[float] = Field(
+    short_term_investments: float | None = Field(
         None,
         description="Short-term / marketable securities",
         ge=0,
@@ -262,7 +261,7 @@ class StandardizedValuationInput(BaseModel):
         description="Accounts receivable, net",
         ge=0,
     )
-    inventory: Optional[float] = Field(
+    inventory: float | None = Field(
         None,
         description="Inventory (if applicable for the industry)",
         ge=0,
@@ -277,12 +276,12 @@ class StandardizedValuationInput(BaseModel):
         description="Property, plant & equipment, net",
         ge=0,
     )
-    goodwill: Optional[float] = Field(
+    goodwill: float | None = Field(
         None,
         description="Goodwill from acquisitions",
         ge=0,
     )
-    intangible_assets: Optional[float] = Field(
+    intangible_assets: float | None = Field(
         None,
         description="Intangible assets, net",
         ge=0,
@@ -370,7 +369,7 @@ class StandardizedValuationInput(BaseModel):
         ...,
         description="Return on Assets (Net Income / Total Assets)",
     )
-    roic: Optional[float] = Field(
+    roic: float | None = Field(
         None,
         description="Return on Invested Capital (NOPAT / Invested Capital)",
     )
@@ -380,11 +379,11 @@ class StandardizedValuationInput(BaseModel):
         ...,
         description="Asset turnover (Revenue / Total Assets)",
     )
-    inventory_turnover: Optional[float] = Field(
+    inventory_turnover: float | None = Field(
         None,
         description="Inventory turnover (COGS / Average Inventory)",
     )
-    receivables_turnover: Optional[float] = Field(
+    receivables_turnover: float | None = Field(
         None,
         description="Receivables turnover (Revenue / Avg Receivables)",
     )
@@ -394,11 +393,11 @@ class StandardizedValuationInput(BaseModel):
         ...,
         description="Debt-to-equity ratio (Total Debt / Equity)",
     )
-    debt_to_ebitda: Optional[float] = Field(
+    debt_to_ebitda: float | None = Field(
         None,
         description="Debt-to-EBITDA ratio",
     )
-    interest_coverage: Optional[float] = Field(
+    interest_coverage: float | None = Field(
         None,
         description="Interest coverage ratio (EBIT / Interest Expense)",
     )
@@ -418,91 +417,91 @@ class StandardizedValuationInput(BaseModel):
     )
 
     # === Valuation Multiples (Current) ===
-    pe_ratio: Optional[float] = Field(
+    pe_ratio: float | None = Field(
         None,
         description="Price-to-Earnings ratio (Price / EPS)",
     )
-    forward_pe: Optional[float] = Field(
+    forward_pe: float | None = Field(
         None,
         description="Forward P/E ratio (Price / Forward EPS)",
     )
-    peg_ratio: Optional[float] = Field(
+    peg_ratio: float | None = Field(
         None,
         description="PEG ratio (P/E / Earnings Growth Rate)",
     )
-    price_to_book: Optional[float] = Field(
+    price_to_book: float | None = Field(
         None,
         description="Price-to-Book ratio (Price / Book Value per Share)",
     )
-    price_to_sales: Optional[float] = Field(
+    price_to_sales: float | None = Field(
         None,
         description="Price-to-Sales ratio (Market Cap / Revenue)",
     )
-    ev_to_ebitda: Optional[float] = Field(
+    ev_to_ebitda: float | None = Field(
         None,
         description="EV/EBITDA multiple",
     )
-    ev_to_revenue: Optional[float] = Field(
+    ev_to_revenue: float | None = Field(
         None,
         description="EV/Revenue multiple",
     )
-    fcf_yield: Optional[float] = Field(
+    fcf_yield: float | None = Field(
         None,
         description="Free cash flow yield (FCF / Market Cap)",
     )
-    earnings_yield: Optional[float] = Field(
+    earnings_yield: float | None = Field(
         None,
         description="Earnings yield (EPS / Price)",
     )
 
     # === Growth Rates (Calculated from Historical Data) ===
-    revenue_growth_1y: Optional[float] = Field(
+    revenue_growth_1y: float | None = Field(
         None,
         description="Revenue growth rate (1 year)",
     )
-    revenue_growth_3y_cagr: Optional[float] = Field(
+    revenue_growth_3y_cagr: float | None = Field(
         None,
         description="Revenue CAGR (3 years)",
     )
-    revenue_growth_5y_cagr: Optional[float] = Field(
+    revenue_growth_5y_cagr: float | None = Field(
         None,
         description="Revenue CAGR (5 years)",
     )
-    revenue_growth_10y_cagr: Optional[float] = Field(
+    revenue_growth_10y_cagr: float | None = Field(
         None,
         description="Revenue CAGR (10 years)",
     )
-    earnings_growth_1y: Optional[float] = Field(
+    earnings_growth_1y: float | None = Field(
         None,
         description="Net income growth rate (1 year)",
     )
-    earnings_growth_3y_cagr: Optional[float] = Field(
+    earnings_growth_3y_cagr: float | None = Field(
         None,
         description="Net income CAGR (3 years)",
     )
-    earnings_growth_5y_cagr: Optional[float] = Field(
+    earnings_growth_5y_cagr: float | None = Field(
         None,
         description="Net income CAGR (5 years)",
     )
-    earnings_growth_10y_cagr: Optional[float] = Field(
+    earnings_growth_10y_cagr: float | None = Field(
         None,
         description="Net income CAGR (10 years)",
     )
-    fcf_growth_1y: Optional[float] = Field(
+    fcf_growth_1y: float | None = Field(
         None,
         description="Free cash flow growth rate (1 year)",
     )
-    fcf_growth_3y_cagr: Optional[float] = Field(
+    fcf_growth_3y_cagr: float | None = Field(
         None,
         description="Free cash flow CAGR (3 years)",
     )
-    fcf_growth_5y_cagr: Optional[float] = Field(
+    fcf_growth_5y_cagr: float | None = Field(
         None,
         description="Free cash flow CAGR (5 years)",
     )
 
     # === Risk Parameters ===
-    beta: Optional[float] = Field(
+    beta: float | None = Field(
         None,
         description="5-year monthly beta vs S&P 500",
     )
@@ -520,33 +519,33 @@ class StandardizedValuationInput(BaseModel):
     )
 
     # === Dividend Information ===
-    dividend_per_share: Optional[float] = Field(
+    dividend_per_share: float | None = Field(
         None,
         description="Annual dividend per share",
         ge=0,
     )
-    dividend_yield: Optional[float] = Field(
+    dividend_yield: float | None = Field(
         None,
         description="Dividend yield (DPS / Price)",
         ge=0,
     )
-    payout_ratio: Optional[float] = Field(
+    payout_ratio: float | None = Field(
         None,
         description="Payout ratio (Dividends / Net Income)",
         ge=0,
     )
-    dividend_growth_5y: Optional[float] = Field(
+    dividend_growth_5y: float | None = Field(
         None,
         description="5-year dividend growth CAGR",
     )
-    years_of_dividend_growth: Optional[int] = Field(
+    years_of_dividend_growth: int | None = Field(
         None,
         description="Consecutive years of dividend increases",
         ge=0,
     )
 
     # === Historical Data (10 Years - CFA Standard) ===
-    historical_financials: List[HistoricalFinancials] = Field(
+    historical_financials: list[HistoricalFinancials] = Field(
         ...,
         description="10 years of annual financial data, most recent first",
         min_length=1,
@@ -554,15 +553,15 @@ class StandardizedValuationInput(BaseModel):
     )
 
     # === Data Quality Flags ===
-    missing_fields: List[str] = Field(
+    missing_fields: list[str] = Field(
         default_factory=list,
         description="Fields that could not be extracted from source data",
     )
-    estimated_fields: List[str] = Field(
+    estimated_fields: list[str] = Field(
         default_factory=list,
         description="Fields that were estimated or calculated by AI",
     )
-    data_anomalies: List[str] = Field(
+    data_anomalies: list[str] = Field(
         default_factory=list,
         description="Data quality warnings and anomalies detected",
     )
@@ -577,7 +576,7 @@ class StandardizedValuationInput(BaseModel):
     @classmethod
     def validate_historical_order(
         cls,
-        v: List[HistoricalFinancials],
-    ) -> List[HistoricalFinancials]:
+        v: list[HistoricalFinancials],
+    ) -> list[HistoricalFinancials]:
         """Ensure historical data is sorted by fiscal year (most recent first)."""
         return sorted(v, key=lambda x: x.fiscal_year, reverse=True)

@@ -20,7 +20,6 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.core.data_loader import get_available_tickers
-
 from app.models.analysis import WarrenBuffettAnalysis
 from app.services.ai_analyst import (
     AIAnalyst,

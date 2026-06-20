@@ -13,10 +13,8 @@ Cache Strategy:
 
 import hashlib
 import logging
-from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
 
 from diskcache import Cache
 
@@ -46,7 +44,7 @@ class ExtractionCache:
             cache.set("AAPL", data)
     """
 
-    def __init__(self, cache_dir: Optional[Path] = None) -> None:
+    def __init__(self, cache_dir: Path | None = None) -> None:
         """
         Initialize the extraction cache.
 
@@ -70,7 +68,7 @@ class ExtractionCache:
             self.ttl,
         )
 
-    def get_cache_key(self, ticker: str, collected_at: Optional[str] = None) -> str:
+    def get_cache_key(self, ticker: str, collected_at: str | None = None) -> str:
         """
         Generate a cache key for a ticker.
 
@@ -101,8 +99,8 @@ class ExtractionCache:
     def get(
         self,
         ticker: str,
-        collected_at: Optional[str] = None,
-    ) -> Optional[StandardizedValuationInput]:
+        collected_at: str | None = None,
+    ) -> StandardizedValuationInput | None:
         """
         Retrieve cached extraction data for a ticker.
 
@@ -155,7 +153,7 @@ class ExtractionCache:
         self,
         ticker: str,
         data: StandardizedValuationInput,
-        collected_at: Optional[str] = None,
+        collected_at: str | None = None,
     ) -> None:
         """
         Store extraction data in the cache.
@@ -190,7 +188,7 @@ class ExtractionCache:
                 str(e),
             )
 
-    def invalidate(self, ticker: str, collected_at: Optional[str] = None) -> bool:
+    def invalidate(self, ticker: str, collected_at: str | None = None) -> bool:
         """
         Invalidate (delete) cached data for a ticker.
 

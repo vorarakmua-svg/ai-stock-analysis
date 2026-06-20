@@ -6,7 +6,7 @@ Provides endpoint for:
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
@@ -95,13 +95,13 @@ async def get_stock_detail(
 
 @router.get(
     "/{ticker}/summary",
-    response_model=Dict[str, Any],
+    response_model=dict[str, Any],
     summary="Get Stock Summary",
     description="Get a summarized view of key stock metrics.",
 )
 async def get_stock_summary(
     ticker: TickerPath,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Get summarized key metrics for a stock.
 

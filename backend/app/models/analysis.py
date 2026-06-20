@@ -16,7 +16,6 @@ qualitative analysis and structured narratives.
 
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -106,7 +105,7 @@ class CompetitiveAdvantage(BaseModel):
         ...,
         description="Assessment of moat durability: 'narrow', 'wide', or 'eroding'",
     )
-    evidence: List[str] = Field(
+    evidence: list[str] = Field(
         ...,
         description="Specific evidence supporting this moat (2-4 bullet points)",
     )
@@ -152,7 +151,7 @@ class RiskFactor(BaseModel):
         ...,
         description="Likelihood of occurrence: 'unlikely', 'possible', 'likely', 'very_likely'",
     )
-    mitigation: Optional[str] = Field(
+    mitigation: str | None = Field(
         None,
         description="Potential mitigation strategies or factors that reduce the risk",
     )
@@ -224,7 +223,7 @@ class WarrenBuffettAnalysis(BaseModel):
     )
 
     # Economic Moat
-    competitive_advantages: List[CompetitiveAdvantage] = Field(
+    competitive_advantages: list[CompetitiveAdvantage] = Field(
         ...,
         description="List of identified competitive moats (can be empty if none found)",
     )
@@ -304,23 +303,23 @@ class WarrenBuffettAnalysis(BaseModel):
     )
 
     # === Key Investment Considerations ===
-    key_positives: List[str] = Field(
+    key_positives: list[str] = Field(
         ...,
         min_length=3,
         max_length=7,
         description="Main reasons to buy this stock (3-7 bullet points)",
     )
-    key_concerns: List[str] = Field(
+    key_concerns: list[str] = Field(
         ...,
         min_length=2,
         max_length=5,
         description="Main risks and concerns about this investment (2-5 bullet points)",
     )
-    key_risks: List[RiskFactor] = Field(
+    key_risks: list[RiskFactor] = Field(
         ...,
         description="Detailed risk factor analysis (2-4 key risks)",
     )
-    potential_catalysts: List[str] = Field(
+    potential_catalysts: list[str] = Field(
         ...,
         description="Events or factors that could unlock value (2-5 catalysts)",
     )
@@ -350,7 +349,7 @@ class WarrenBuffettAnalysis(BaseModel):
         ...,
         description="Overall risk assessment level",
     )
-    suitable_for: List[str] = Field(
+    suitable_for: list[str] = Field(
         ...,
         description="Investor types this investment suits: 'value_investors', 'dividend_seekers', 'growth_investors', 'conservative_investors', etc.",
     )
@@ -374,11 +373,11 @@ class WarrenBuffettAnalysis(BaseModel):
         default="1.0",
         description="Version of the analysis schema/methodology",
     )
-    tokens_consumed: Optional[int] = Field(
+    tokens_consumed: int | None = Field(
         None,
         description="Number of tokens consumed in generation (if available)",
     )
-    generation_time_seconds: Optional[float] = Field(
+    generation_time_seconds: float | None = Field(
         None,
         description="Time taken to generate this analysis in seconds",
     )

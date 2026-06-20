@@ -13,7 +13,6 @@ NOT by AI. The AI layer only handles data extraction and normalization.
 
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -89,19 +88,19 @@ class DCFScenario(BaseModel):
         ge=3,
         le=10,
     )
-    projected_revenue: List[float] = Field(
+    projected_revenue: list[float] = Field(
         ...,
         description="Projected revenue for each forecast year",
     )
-    projected_ebit: List[float] = Field(
+    projected_ebit: list[float] = Field(
         ...,
         description="Projected EBIT (Operating Income) for each forecast year",
     )
-    projected_nopat: List[float] = Field(
+    projected_nopat: list[float] = Field(
         ...,
         description="Projected NOPAT (Net Operating Profit After Tax) for each year",
     )
-    projected_fcf: List[float] = Field(
+    projected_fcf: list[float] = Field(
         ...,
         description="Projected Free Cash Flow for each forecast year",
     )
@@ -245,7 +244,7 @@ class DCFValuation(BaseModel):
     )
 
     # Probability weighting
-    scenario_weights: Dict[str, float] = Field(
+    scenario_weights: dict[str, float] = Field(
         default={
             "conservative": 0.25,
             "base_case": 0.50,
@@ -259,11 +258,11 @@ class DCFValuation(BaseModel):
     )
 
     # Sensitivity analysis
-    sensitivity_to_wacc: Dict[str, float] = Field(
+    sensitivity_to_wacc: dict[str, float] = Field(
         ...,
         description="Intrinsic value sensitivity to WACC changes (+/- 1%)",
     )
-    sensitivity_to_growth: Dict[str, float] = Field(
+    sensitivity_to_growth: dict[str, float] = Field(
         ...,
         description="Intrinsic value sensitivity to terminal growth changes (+/- 1%)",
     )
@@ -407,7 +406,7 @@ class GrahamDefensiveCriteria(BaseModel):
         ...,
         description="Passes earnings growth (EPS growth > 33% over 10 years)",
     )
-    eps_10y_growth: Optional[float] = Field(
+    eps_10y_growth: float | None = Field(
         None,
         description="EPS growth over 10 years (as decimal)",
     )
@@ -425,7 +424,7 @@ class GrahamDefensiveCriteria(BaseModel):
         default=15.0,
         description="Maximum acceptable P/E ratio",
     )
-    actual_pe: Optional[float] = Field(
+    actual_pe: float | None = Field(
         None,
         description="Company's actual P/E ratio",
     )
@@ -439,13 +438,13 @@ class GrahamDefensiveCriteria(BaseModel):
         default=1.5,
         description="Maximum acceptable P/B ratio",
     )
-    actual_pb: Optional[float] = Field(
+    actual_pb: float | None = Field(
         None,
         description="Company's actual P/B ratio",
     )
 
     # Combined P/E * P/B criterion (alternative to separate P/E and P/B tests)
-    graham_product: Optional[float] = Field(
+    graham_product: float | None = Field(
         None,
         description="P/E * P/B product (should be < 22.5)",
     )
@@ -543,7 +542,7 @@ class ValuationResult(BaseModel):
     )
 
     # Composite valuation
-    valuation_methods_used: List[str] = Field(
+    valuation_methods_used: list[str] = Field(
         ...,
         description="List of valuation methods applied",
     )
@@ -577,11 +576,11 @@ class ValuationResult(BaseModel):
     )
 
     # Assumptions and caveats
-    key_assumptions: Dict[str, str] = Field(
+    key_assumptions: dict[str, str] = Field(
         ...,
         description="Key assumptions used in valuation",
     )
-    risk_factors: List[str] = Field(
+    risk_factors: list[str] = Field(
         ...,
         description="Risk factors and data quality warnings",
     )

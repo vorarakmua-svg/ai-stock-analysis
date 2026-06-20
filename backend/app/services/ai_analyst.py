@@ -26,7 +26,6 @@ import re
 import threading
 import time
 from pathlib import Path
-from typing import Optional
 
 from diskcache import Cache
 
@@ -63,7 +62,7 @@ class GeminiAnalysisError(AnalysisError):
     def __init__(
         self,
         message: str,
-        status_code: Optional[int] = None,
+        status_code: int | None = None,
         retryable: bool = True,
     ):
         self.status_code = status_code
@@ -92,7 +91,7 @@ class AnalysisCache:
     cache invalidation when underlying valuation changes.
     """
 
-    def __init__(self, cache_dir: Optional[Path] = None) -> None:
+    def __init__(self, cache_dir: Path | None = None) -> None:
         """
         Initialize the analysis cache.
 
@@ -126,7 +125,7 @@ class AnalysisCache:
         self,
         ticker: str,
         valuation_timestamp: str,
-    ) -> Optional[WarrenBuffettAnalysis]:
+    ) -> WarrenBuffettAnalysis | None:
         """
         Retrieve cached analysis for a ticker.
 
@@ -237,9 +236,9 @@ class AIAnalyst:
 
     def __init__(
         self,
-        cache: Optional[AnalysisCache] = None,
-        valuation_engine: Optional[ValuationEngine] = None,
-        provider: Optional[LLMProvider] = None,
+        cache: AnalysisCache | None = None,
+        valuation_engine: ValuationEngine | None = None,
+        provider: LLMProvider | None = None,
     ) -> None:
         """
         Initialize the AI analyst.
@@ -256,9 +255,7 @@ class AIAnalyst:
         settings = get_settings()
 
         if not settings.GOOGLE_API_KEY:
-            raise ValueError(
-                "GOOGLE_API_KEY is not configured. Please set it in .env file."
-            )
+            raise ValueError("GOOGLE_API_KEY is not configured. Please set it in .env file.")
 
         # LLM provider abstraction (system prompt passed per-call). The narrative
         # analyst benefits from thinking, so the budget defaults to "model decides".
@@ -334,7 +331,7 @@ class AIAnalyst:
             GeminiAnalysisError: If all retries fail (or on a non-retryable
                 failure such as MAX_TOKENS truncation / safety block).
         """
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
 
         for attempt in range(self.MAX_RETRIES):
             try:
@@ -390,13 +387,11 @@ class AIAnalyst:
                     raise GeminiAnalysisError(str(e), retryable=False) from e
 
                 if attempt < self.MAX_RETRIES - 1:
-                    delay = self.RETRY_DELAY * (2 ** attempt)  # Exponential backoff
+                    delay = self.RETRY_DELAY * (2**attempt)  # Exponential backoff
                     logger.info("Retrying analysis in %.1f seconds...", delay)
                     await asyncio.sleep(delay)
 
-        raise GeminiAnalysisError(
-            f"All {self.MAX_RETRIES} analysis LLM calls failed: {last_error}"
-        )
+        raise GeminiAnalysisError(f"All {self.MAX_RETRIES} analysis LLM calls failed: {last_error}")
 
     def _parse_response(
         self,
@@ -559,9 +554,7 @@ class AIAnalyst:
             )
         except Exception as e:
             logger.error("Failed to get valuation for %s: %s", ticker, e)
-            raise ValuationNotFoundError(
-                f"Could not obtain valuation for {ticker}: {e}"
-            ) from e
+            raise ValuationNotFoundError(f"Could not obtain valuation for {ticker}: {e}") from e
 
         valuation_timestamp = valuation_result.calculation_timestamp.isoformat()
 
@@ -623,7 +616,7 @@ class AIAnalyst:
     async def get_cached_analysis(
         self,
         ticker: str,
-    ) -> Optional[WarrenBuffettAnalysis]:
+    ) -> WarrenBuffettAnalysis | None:
         """
         Get cached analysis if available, without generating new one.
 
@@ -653,7 +646,7 @@ class AIAnalyst:
 
 
 # Singleton instance for dependency injection
-_analyst_instance: Optional[AIAnalyst] = None
+_analyst_instance: AIAnalyst | None = None
 _analyst_lock = threading.Lock()
 
 

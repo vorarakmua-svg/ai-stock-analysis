@@ -28,17 +28,14 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
-      # Test code is held to a clean bar from day one.
-      - name: Ruff lint (tests)
-        run: ruff check tests
-      - name: Ruff format check (tests)
-        run: ruff format --check tests
+      # Ruff lint + format are blocking across app and tests.
+      - name: Ruff lint
+        run: ruff check app tests
+      - name: Ruff format check
+        run: ruff format --check app tests
 
-      # App code has a pre-existing lint/type backlog; these are informational
-      # until the dedicated cleanup pass lands, then flip continue-on-error off.
-      - name: Ruff lint (app, informational)
-        run: ruff check app
-        continue-on-error: true
+      # mypy stays informational until a dedicated typing pass clears the
+      # remaining ~13 errors (mostly the FlexibleInputAdapter duck-typing).
       - name: mypy (app, informational)
         run: mypy app
         continue-on-error: true
@@ -47,7 +44,7 @@ jobs:
         env:
           # Lets the AIExtractor key check pass; all Gemini calls are mocked.
           GOOGLE_API_KEY: test-dummy
-        run: pytest --cov=app --cov-report=term-missing --cov-fail-under=55
+        run: pytest --cov=app --cov-report=term-missing --cov-fail-under=58
 
   ingestion:
     name: Ingestion (lint + test)

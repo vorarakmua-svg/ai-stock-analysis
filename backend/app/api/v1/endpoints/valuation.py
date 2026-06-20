@@ -24,11 +24,8 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-# Rate limiter for valuation endpoints (expensive AI operations)
-limiter = Limiter(key_func=get_remote_address)
-
-from app.models.valuation_output import ValuationResult
 from app.models.flexible_input import FlexibleValuationInput
+from app.models.valuation_output import ValuationResult
 from app.services.ai_extractor import (
     AIExtractor,
     APIKeyNotConfiguredError,
@@ -44,6 +41,9 @@ from app.services.valuation_engine import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Rate limiter for valuation endpoints (expensive AI operations)
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter()
 

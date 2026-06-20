@@ -6,17 +6,16 @@ and other shared resources across endpoints.
 """
 
 import re
-from typing import Annotated, Any, Dict, List
+from typing import Annotated, Any
 
-from fastapi import Depends, HTTPException, Path, status
+from fastapi import Depends, Path
 
 from app.config import Settings, get_settings
 from app.core.data_loader import (
     get_available_tickers,
-    load_summary_csv,
     load_stock_json,
+    load_summary_csv,
 )
-
 
 # Regex pattern for valid ticker symbols (1-10 chars, may include dots or hyphens for class shares)
 TICKER_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9.\-]{0,9}$")
@@ -67,7 +66,7 @@ TickerPath = Annotated[
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 
-def get_stocks_data() -> List[Dict[str, Any]]:
+def get_stocks_data() -> list[dict[str, Any]]:
     """
     Dependency to load all stocks from summary CSV.
 
@@ -81,7 +80,7 @@ def get_stocks_data() -> List[Dict[str, Any]]:
     return load_summary_csv()
 
 
-def get_stock_data(ticker: str) -> Dict[str, Any]:
+def get_stock_data(ticker: str) -> dict[str, Any]:
     """
     Dependency factory to load a specific stock's JSON data.
 
@@ -97,7 +96,7 @@ def get_stock_data(ticker: str) -> Dict[str, Any]:
     return load_stock_json(ticker)
 
 
-def get_tickers_list() -> List[str]:
+def get_tickers_list() -> list[str]:
     """
     Dependency to get list of available tickers.
 
@@ -108,8 +107,8 @@ def get_tickers_list() -> List[str]:
 
 
 # Type aliases for common dependencies
-StocksDataDep = Annotated[List[Dict[str, Any]], Depends(get_stocks_data)]
-TickersListDep = Annotated[List[str], Depends(get_tickers_list)]
+StocksDataDep = Annotated[list[dict[str, Any]], Depends(get_stocks_data)]
+TickersListDep = Annotated[list[str], Depends(get_tickers_list)]
 
 
 async def verify_ticker_exists(ticker: str) -> str:

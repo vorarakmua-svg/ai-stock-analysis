@@ -8,25 +8,24 @@ Provides endpoints for:
 
 import logging
 from enum import Enum
-from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
-logger = logging.getLogger(__name__)
-
 from app.core.data_loader import (
     DataLoadError,
+    get_available_tickers,
     get_column_names,
     get_unique_industries,
     get_unique_sectors,
     load_summary_csv,
-    get_available_tickers,
 )
 from app.models.stock import (
     StockListResponse,
     StockMetadataResponse,
     StockSummary,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -45,7 +44,7 @@ class SortOrder(str, Enum):
     description="Retrieve all stocks with optional filtering and sorting.",
 )
 async def get_stocks(
-    sort_by: Optional[str] = Query(
+    sort_by: str | None = Query(
         None,
         description="Column name to sort by (e.g., 'market_cap', 'pe_trailing')",
     ),
@@ -53,33 +52,33 @@ async def get_stocks(
         SortOrder.desc,
         description="Sort order: 'asc' or 'desc'",
     ),
-    sector: Optional[str] = Query(
+    sector: str | None = Query(
         None,
         description="Filter by sector (e.g., 'Technology')",
     ),
-    industry: Optional[str] = Query(
+    industry: str | None = Query(
         None,
         description="Filter by industry (e.g., 'Semiconductors')",
     ),
-    search: Optional[str] = Query(
+    search: str | None = Query(
         None,
         description="Search ticker or company name (case-insensitive)",
     ),
-    min_market_cap: Optional[float] = Query(
+    min_market_cap: float | None = Query(
         None,
         description="Minimum market cap filter",
         ge=0,
     ),
-    max_market_cap: Optional[float] = Query(
+    max_market_cap: float | None = Query(
         None,
         description="Maximum market cap filter",
         ge=0,
     ),
-    min_pe: Optional[float] = Query(
+    min_pe: float | None = Query(
         None,
         description="Minimum trailing P/E filter",
     ),
-    max_pe: Optional[float] = Query(
+    max_pe: float | None = Query(
         None,
         description="Maximum trailing P/E filter",
     ),
@@ -111,7 +110,7 @@ async def get_stocks(
         raise HTTPException(status_code=500, detail="Failed to load stock data.")
 
     # Convert to StockSummary models for validation
-    stocks: List[StockSummary] = []
+    stocks: list[StockSummary] = []
     skipped_count = 0
     for raw in raw_stocks:
         try:
@@ -193,7 +192,7 @@ async def get_stocks(
 
         if actual_sort_by not in valid_columns and sort_by not in valid_columns:
             # Also allow Pydantic field names
-            field_names = [f for f in StockSummary.model_fields.keys()]
+            field_names = list(StockSummary.model_fields.keys())
             if sort_by not in field_names:
                 raise HTTPException(
                     status_code=400,

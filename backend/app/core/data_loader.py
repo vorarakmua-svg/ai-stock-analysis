@@ -9,8 +9,7 @@ This module provides functions to load and parse stock data from:
 import json
 import logging
 from functools import lru_cache
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -30,7 +29,7 @@ class DataLoadError(Exception):
     pass
 
 
-def load_summary_csv() -> List[Dict[str, Any]]:
+def load_summary_csv() -> list[dict[str, Any]]:
     """
     Load summary.csv as a list of dictionaries.
 
@@ -58,6 +57,7 @@ def load_summary_csv() -> List[Dict[str, Any]]:
 
         # Replace NaN/inf values with None for JSON serialization
         import numpy as np
+
         df = df.replace([np.nan, np.inf, -np.inf], None)
 
         # Convert to list of dictionaries
@@ -65,7 +65,7 @@ def load_summary_csv() -> List[Dict[str, Any]]:
 
         # Double-check for any remaining float NaN values and convert to None
         # Also normalize debt_to_equity from percentage to ratio (yfinance returns %)
-        def sanitize_record(record: Dict[str, Any]) -> Dict[str, Any]:
+        def sanitize_record(record: dict[str, Any]) -> dict[str, Any]:
             sanitized = {}
             for key, value in record.items():
                 if isinstance(value, float) and (pd.isna(value) or np.isinf(value)):
@@ -89,7 +89,7 @@ def load_summary_csv() -> List[Dict[str, Any]]:
 
 
 @lru_cache(maxsize=32)
-def load_stock_json(ticker: str) -> Dict[str, Any]:
+def load_stock_json(ticker: str) -> dict[str, Any]:
     """
     Load individual stock JSON file by ticker symbol.
 
@@ -120,14 +120,16 @@ def load_stock_json(ticker: str) -> Dict[str, Any]:
     if file_size > MAX_JSON_FILE_SIZE:
         logger.warning(
             "JSON file for %s exceeds size limit: %d bytes (max: %d)",
-            ticker, file_size, MAX_JSON_FILE_SIZE
+            ticker,
+            file_size,
+            MAX_JSON_FILE_SIZE,
         )
         raise DataLoadError(
             f"JSON file for ticker {ticker} exceeds maximum size limit ({file_size} > {MAX_JSON_FILE_SIZE} bytes)"
         )
 
     try:
-        with open(json_path, "r", encoding="utf-8") as f:
+        with open(json_path, encoding="utf-8") as f:
             data = json.load(f)
 
         # Normalize debt_to_equity from percentage to ratio (yfinance returns %)
@@ -143,7 +145,7 @@ def load_stock_json(ticker: str) -> Dict[str, Any]:
         raise DataLoadError(f"Failed to load JSON for ticker {ticker}: {e}") from e
 
 
-def get_available_tickers() -> List[str]:
+def get_available_tickers() -> list[str]:
     """
     List all available stock tickers from JSON directory.
 
@@ -175,7 +177,9 @@ def get_available_tickers() -> List[str]:
     return sorted(tickers)
 
 
-def get_stock_by_ticker(ticker: str, stocks: Optional[List[Dict[str, Any]]] = None) -> Optional[Dict[str, Any]]:
+def get_stock_by_ticker(
+    ticker: str, stocks: list[dict[str, Any]] | None = None
+) -> dict[str, Any] | None:
     """
     Find a stock in the summary data by ticker symbol.
 
@@ -202,7 +206,7 @@ def get_stock_by_ticker(ticker: str, stocks: Optional[List[Dict[str, Any]]] = No
     return None
 
 
-def get_unique_sectors(stocks: Optional[List[Dict[str, Any]]] = None) -> List[str]:
+def get_unique_sectors(stocks: list[dict[str, Any]] | None = None) -> list[str]:
     """
     Get list of unique sectors from stock data.
 
@@ -229,7 +233,7 @@ def get_unique_sectors(stocks: Optional[List[Dict[str, Any]]] = None) -> List[st
     return sorted(sectors)
 
 
-def get_unique_industries(stocks: Optional[List[Dict[str, Any]]] = None) -> List[str]:
+def get_unique_industries(stocks: list[dict[str, Any]] | None = None) -> list[str]:
     """
     Get list of unique industries from stock data.
 
@@ -256,7 +260,7 @@ def get_unique_industries(stocks: Optional[List[Dict[str, Any]]] = None) -> List
     return sorted(industries)
 
 
-def get_column_names() -> List[str]:
+def get_column_names() -> list[str]:
     """
     Get list of all column names from summary CSV.
 
