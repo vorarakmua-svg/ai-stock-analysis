@@ -102,3 +102,16 @@ def record_llm_usage(
         response.total_tokens,
         response.finish_reason,
     )
+
+    # Best-effort metric (never let observability break a request).
+    try:
+        from app.core.metrics import record_llm_tokens
+
+        record_llm_tokens(
+            response.model,
+            input_tokens=response.input_tokens,
+            output_tokens=response.output_tokens,
+            thinking_tokens=response.thinking_tokens,
+        )
+    except Exception:  # pragma: no cover - metrics are non-critical
+        pass

@@ -105,6 +105,24 @@ class Settings(BaseSettings):
         description="Thinking-token budget for analyst calls (-1 = model decides)"
     )
 
+    # Observability
+    LOG_LEVEL: str = Field(
+        default="INFO",
+        description="Root log level (DEBUG, INFO, WARNING, ERROR)"
+    )
+    LOG_JSON: bool = Field(
+        default=True,
+        description="Emit structured JSON logs (set False for human-readable dev logs)"
+    )
+    ENABLE_METRICS: bool = Field(
+        default=True,
+        description="Expose Prometheus metrics at /metrics"
+    )
+    SENTRY_DSN: str = Field(
+        default="",
+        description="Sentry DSN for error tracking (disabled when empty)"
+    )
+
     # Cache Settings
     CACHE_DIR: str = Field(
         default="./cache",

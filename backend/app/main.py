@@ -9,20 +9,42 @@ This module creates and configures the FastAPI application with:
 - Health check endpoint
 """
 
+import logging
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Dict
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from app.api.v1 import api_router
 from app.config import get_settings
+from app.core.exceptions import register_exception_handlers
+from app.core.health import check_readiness
+from app.core.logging_config import configure_logging
+from app.core.metrics import MetricsMiddleware, metrics_response
+from app.middleware.request_id import RequestIDMiddleware
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
+
+
+def _init_sentry() -> None:
+    """Initialize Sentry if a DSN is configured and the SDK is installed."""
+    if not settings.SENTRY_DSN:
+        return
+    try:
+        import sentry_sdk
+
+        sentry_sdk.init(dsn=settings.SENTRY_DSN, traces_sample_rate=0.1)
+        logger.info("Sentry error tracking enabled")
+    except Exception:  # pragma: no cover - optional dependency
+        logger.warning("SENTRY_DSN set but sentry_sdk unavailable; skipping")
+
 
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -43,21 +65,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         Use this for initializing connections, caches, or other resources
         that need cleanup on shutdown.
     """
-    # Startup: Initialize resources
-    import sys
-    import io
-    # Handle Unicode paths safely for Windows console
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    # Startup: configure structured logging and optional error tracking.
+    configure_logging(level=settings.LOG_LEVEL, json_enabled=settings.LOG_JSON)
+    _init_sentry()
 
-    print(f"Starting Intelligent Investor Pro API in {settings.APP_ENV} mode")
-    print(f"Data directory configured: {settings.DATA_DIR}")
-    print(f"CSV path configured: {settings.CSV_PATH}")
-    print(f"JSON directory configured: {settings.JSON_DIR}")
+    logger.info(
+        "Starting Intelligent Investor Pro API (env=%s, json_dir=%s)",
+        settings.APP_ENV,
+        settings.JSON_DIR,
+    )
 
     yield
 
     # Shutdown: Cleanup resources
-    print("Shutting down Intelligent Investor Pro API")
+    logger.info("Shutting down Intelligent Investor Pro API")
 
 
 app = FastAPI(
@@ -77,6 +98,14 @@ app = FastAPI(
 # Configure rate limiter
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Global exception handlers (domain -> status; catch-all hides internals)
+register_exception_handlers(app)
+
+# Request-ID correlation (outermost so it wraps everything) and metrics.
+app.add_middleware(RequestIDMiddleware)
+if settings.ENABLE_METRICS:
+    app.add_middleware(MetricsMiddleware)
 
 # Configure GZip compression (compress responses > 500 bytes)
 app.add_middleware(GZipMiddleware, minimum_size=500)
@@ -99,9 +128,9 @@ app.include_router(api_router, prefix=settings.API_PREFIX)
     tags=["Health"],
     summary="Health Check",
     description="Check if the API is running and healthy.",
-    response_model=Dict[str, str],
+    response_model=dict[str, str],
 )
-async def health_check() -> Dict[str, str]:
+async def health_check() -> dict[str, str]:
     """
     Health check endpoint for monitoring and load balancers.
 
@@ -116,13 +145,35 @@ async def health_check() -> Dict[str, str]:
 
 
 @app.get(
+    "/ready",
+    tags=["Health"],
+    summary="Readiness Check",
+    description="Verify dependencies (data, API key) are available to serve traffic.",
+)
+async def readiness_check() -> JSONResponse:
+    """Return 200 when ready, 503 (with per-dependency detail) when not."""
+    healthy, checks = check_readiness()
+    return JSONResponse(
+        status_code=200 if healthy else 503,
+        content={"status": "ready" if healthy else "not_ready", "checks": checks},
+    )
+
+
+if settings.ENABLE_METRICS:
+
+    @app.get("/metrics", tags=["Health"], summary="Prometheus metrics")
+    async def metrics():  # noqa: ANN201 - returns a raw exposition response
+        return metrics_response()
+
+
+@app.get(
     "/",
     tags=["Root"],
     summary="API Root",
     description="Root endpoint with API information.",
-    response_model=Dict[str, str],
+    response_model=dict[str, str],
 )
-async def root() -> Dict[str, str]:
+async def root() -> dict[str, str]:
     """
     Root endpoint providing basic API information.
 
