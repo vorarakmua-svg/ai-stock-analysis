@@ -182,20 +182,32 @@ docker-compose down
 
 ## Development
 
-### Running Tests
-```bash
-# Backend
-cd backend
-pytest
+### Quality Gates
+The backend is gated in CI by **ruff** (lint + format), **mypy** (static
+type-checking), and **pytest** — all blocking. Install the dev tooling and the
+pre-commit hooks (ruff + mypy run on staged files):
 
-# Frontend
-cd frontend
+```bash
+cd backend
+pip install -e ".[dev]"
+pre-commit install
+```
+
+### Running Checks
+```bash
+# Backend (run from backend/)
+ruff check app tests             # lint
+ruff format --check app tests    # formatting
+mypy app                         # static type-checking (blocking in CI)
+pytest                           # test suite
+
+# Frontend (run from frontend/)
 npm run lint
 npm run build
 ```
 
 ### Code Style
-- Backend: Python with type hints, Black formatting
+- Backend: Python with type hints, enforced by ruff (lint + format) and mypy
 - Frontend: TypeScript with ESLint, Prettier
 
 ## Troubleshooting
