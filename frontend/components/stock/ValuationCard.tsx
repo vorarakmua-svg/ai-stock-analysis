@@ -82,7 +82,6 @@ export function ValuationCard({
     isLoading,
     error,
     refetch,
-    isFetched,
   } = useValuation(ticker, enabled);
   const { mutate: refresh, isPending: isRefreshing } = useRefreshValuation();
 

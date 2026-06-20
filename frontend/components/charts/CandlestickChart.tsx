@@ -122,34 +122,6 @@ function transformToVolumeData(
 }
 
 /**
- * Loading skeleton for the chart
- */
-function ChartSkeleton({ height }: { height: number }): ReactElement {
-  return (
-    <div
-      className="rounded-lg border border-border bg-background-secondary"
-      style={{ height: `${height}px` }}
-    >
-      <div className="flex h-full flex-col">
-        {/* Period selector skeleton */}
-        <div className="flex items-center justify-between border-b border-border p-4">
-          <div className="h-5 w-32 skeleton rounded" />
-          <div className="flex gap-2">
-            {periodButtons.map((_, i) => (
-              <div key={i} className="h-8 w-10 skeleton rounded" />
-            ))}
-          </div>
-        </div>
-        {/* Chart area skeleton */}
-        <div className="flex-1 p-4">
-          <div className="h-full w-full skeleton rounded" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
  * Error display for the chart
  */
 function ChartError({ message }: { message: string }): ReactElement {
