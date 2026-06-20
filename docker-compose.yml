@@ -41,6 +41,31 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  # arq worker - runs the off-request AI valuation pipeline
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: iip-worker
+    command: ["arq", "app.jobs.worker.WorkerSettings"]
+    environment:
+      - DATA_DIR=/data
+      - CSV_PATH=/data/output/csv/summary.csv
+      - JSON_DIR=/data/output/json
+      - CACHE_DIR=/app/cache
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - DATABASE_URL=postgresql+asyncpg://iip:iip@postgres:5432/iip
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./data:/data:ro
+      - backend-cache:/app/cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   # PostgreSQL - persistence (valuation history, LLM usage/metering)
   postgres:
     image: postgres:16-alpine

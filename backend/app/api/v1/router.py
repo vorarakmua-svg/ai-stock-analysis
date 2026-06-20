@@ -7,7 +7,15 @@ with appropriate prefixes and tags.
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import analysis, extraction, realtime, screener, stock, valuation
+from app.api.v1.endpoints import (
+    analysis,
+    extraction,
+    jobs,
+    realtime,
+    screener,
+    stock,
+    valuation,
+)
 
 api_router = APIRouter()
 
@@ -51,4 +59,11 @@ api_router.include_router(
     analysis.router,
     prefix="/stocks",
     tags=["AI Analysis"],
+)
+
+# Include async job endpoints (POST /stocks/{ticker}/valuation/async, GET /jobs/{job_id}).
+# No prefix: the routes carry their own full paths.
+api_router.include_router(
+    jobs.router,
+    tags=["Jobs"],
 )
