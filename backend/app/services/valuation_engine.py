@@ -26,9 +26,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from diskcache import Cache
-
 from app.config import get_settings
+from app.core.cache_backend import CacheBackend, DiskCacheBackend, make_cache_backend
 from app.models.flexible_input import FlexibleValuationInput, HistoricalYear
 from app.models.valuation_input import (
     StandardizedValuationInput,
@@ -446,28 +445,30 @@ class ValuationCache:
     cache invalidation when source data changes.
     """
 
-    def __init__(self, cache_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        cache_dir: Path | None = None,
+        backend: CacheBackend | None = None,
+    ) -> None:
         """
         Initialize the valuation cache.
 
         Args:
-            cache_dir: Optional custom cache directory. If not provided,
-                      uses settings.cache_dir_resolved / "valuations"
+            cache_dir: Optional explicit disk cache directory (forces disk; tests).
+            backend: Optional pre-built CacheBackend. If neither is given, the
+                     backend is chosen from settings (CACHE_BACKEND).
         """
         settings = get_settings()
         self.ttl = settings.VALUATION_CACHE_TTL
 
-        if cache_dir is None:
-            cache_dir = settings.cache_dir_resolved / "valuations"
+        if backend is not None:
+            self.backend = backend
+        elif cache_dir is not None:
+            self.backend = DiskCacheBackend(cache_dir)
+        else:
+            self.backend = make_cache_backend("valuations")
 
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        self.cache = Cache(str(cache_dir))
-
-        logger.info(
-            "ValuationCache initialized at %s with TTL=%d seconds",
-            cache_dir,
-            self.ttl,
-        )
+        logger.info("ValuationCache initialized with TTL=%d seconds", self.ttl)
 
     def _get_cache_key(self, ticker: str, extraction_timestamp: str) -> str:
         """Generate cache key from ticker and extraction timestamp."""
@@ -493,7 +494,7 @@ class ValuationCache:
         cache_key = self._get_cache_key(ticker, extraction_timestamp)
 
         try:
-            cached_data = self.cache.get(cache_key)
+            cached_data = self.backend.get(cache_key)
 
             if cached_data is None:
                 logger.debug("Valuation cache miss for %s", ticker)
@@ -532,7 +533,7 @@ class ValuationCache:
 
         try:
             cache_data = data.model_dump(mode="json")
-            self.cache.set(cache_key, cache_data, expire=self.ttl)
+            self.backend.set(cache_key, cache_data, self.ttl)
             logger.info(
                 "Cached valuation for %s (TTL: %d seconds)",
                 ticker,
@@ -547,9 +548,9 @@ class ValuationCache:
         deleted_count = 0
 
         try:
-            for key in list(self.cache):
+            for key in self.backend.iter_keys():
                 if isinstance(key, str) and key.startswith(f"valuation_{ticker}_"):
-                    if self.cache.delete(key):
+                    if self.backend.delete(key):
                         deleted_count += 1
 
             logger.info("Invalidated %d valuation cache entries for %s", deleted_count, ticker)

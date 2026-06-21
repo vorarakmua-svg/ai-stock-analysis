@@ -16,9 +16,8 @@ import logging
 from functools import lru_cache
 from pathlib import Path
 
-from diskcache import Cache
-
 from app.config import get_settings
+from app.core.cache_backend import CacheBackend, DiskCacheBackend, make_cache_backend
 from app.models.valuation_input import StandardizedValuationInput
 
 logger = logging.getLogger(__name__)
@@ -44,29 +43,32 @@ class ExtractionCache:
             cache.set("AAPL", data)
     """
 
-    def __init__(self, cache_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        cache_dir: Path | None = None,
+        backend: CacheBackend | None = None,
+    ) -> None:
         """
         Initialize the extraction cache.
 
         Args:
-            cache_dir: Optional custom cache directory. If not provided,
-                      uses settings.cache_dir_resolved / "extractions"
+            cache_dir: Optional explicit disk cache directory (forces the disk
+                      backend; used by tests).
+            backend: Optional pre-built CacheBackend (used by tests/DI).
+                      If neither is given, the backend is chosen from settings
+                      (CACHE_BACKEND): disk (default) or redis.
         """
         settings = get_settings()
         self.ttl = settings.EXTRACTION_CACHE_TTL
 
-        if cache_dir is None:
-            cache_dir = settings.cache_dir_resolved / "extractions"
+        if backend is not None:
+            self.backend = backend
+        elif cache_dir is not None:
+            self.backend = DiskCacheBackend(cache_dir)
+        else:
+            self.backend = make_cache_backend("extractions")
 
-        # Ensure cache directory exists
-        cache_dir.mkdir(parents=True, exist_ok=True)
-
-        self.cache = Cache(str(cache_dir))
-        logger.info(
-            "ExtractionCache initialized at %s with TTL=%d seconds",
-            cache_dir,
-            self.ttl,
-        )
+        logger.info("ExtractionCache initialized with TTL=%d seconds", self.ttl)
 
     def get_cache_key(self, ticker: str, collected_at: str | None = None) -> str:
         """
@@ -117,7 +119,7 @@ class ExtractionCache:
         cache_key = self.get_cache_key(ticker, collected_at)
 
         try:
-            cached_data = self.cache.get(cache_key)
+            cached_data = self.backend.get(cache_key)
 
             if cached_data is None:
                 logger.debug("Cache miss for %s (key: %s)", ticker, cache_key)
@@ -172,7 +174,7 @@ class ExtractionCache:
         try:
             # Serialize to dict for storage
             cache_data = data.model_dump(mode="json")
-            self.cache.set(cache_key, cache_data, expire=self.ttl)
+            self.backend.set(cache_key, cache_data, self.ttl)
 
             logger.info(
                 "Cached extraction for %s (key: %s, TTL: %d seconds)",
@@ -202,7 +204,7 @@ class ExtractionCache:
         cache_key = self.get_cache_key(ticker, collected_at)
 
         try:
-            deleted = self.cache.delete(cache_key)
+            deleted = self.backend.delete(cache_key)
 
             if deleted:
                 logger.info("Invalidated cache for %s (key: %s)", ticker, cache_key)
@@ -238,13 +240,13 @@ class ExtractionCache:
 
         try:
             # Iterate through all keys and delete those matching the ticker
-            for key in list(self.cache):
+            for key in self.backend.iter_keys():
                 if isinstance(key, str) and key.startswith(f"{ticker}_"):
-                    if self.cache.delete(key):
+                    if self.backend.delete(key):
                         deleted_count += 1
 
             # Also delete the base key without timestamp
-            if self.cache.delete(ticker):
+            if self.backend.delete(ticker):
                 deleted_count += 1
 
             logger.info(
@@ -271,11 +273,7 @@ class ExtractionCache:
             Dictionary with cache statistics including size and volume.
         """
         try:
-            return {
-                "size": len(self.cache),
-                "volume": self.cache.volume(),
-                "directory": str(self.cache.directory),
-            }
+            return self.backend.stats()
         except Exception as e:
             logger.error("Failed to get cache stats: %s", str(e))
             return {"error": str(e)}
@@ -283,7 +281,7 @@ class ExtractionCache:
     def clear(self) -> None:
         """Clear all entries from the cache."""
         try:
-            self.cache.clear()
+            self.backend.clear()
             logger.info("Cleared all extraction cache entries")
         except Exception as e:
             logger.error("Failed to clear cache: %s", str(e))
@@ -291,7 +289,7 @@ class ExtractionCache:
     def close(self) -> None:
         """Close the cache connection."""
         try:
-            self.cache.close()
+            self.backend.close()
             logger.debug("Extraction cache closed")
         except Exception as e:
             logger.error("Failed to close cache: %s", str(e))

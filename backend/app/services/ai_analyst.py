@@ -27,9 +27,8 @@ import threading
 import time
 from pathlib import Path
 
-from diskcache import Cache
-
 from app.config import get_settings
+from app.core.cache_backend import CacheBackend, DiskCacheBackend, make_cache_backend
 from app.core.data_loader import load_stock_json
 from app.models.analysis import WarrenBuffettAnalysis
 from app.prompts.analysis_prompt import (
@@ -91,26 +90,31 @@ class AnalysisCache:
     cache invalidation when underlying valuation changes.
     """
 
-    def __init__(self, cache_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        cache_dir: Path | None = None,
+        backend: CacheBackend | None = None,
+    ) -> None:
         """
         Initialize the analysis cache.
 
         Args:
-            cache_dir: Optional custom cache directory. If not provided,
-                      uses settings.cache_dir_resolved / "analyses"
+            cache_dir: Optional explicit disk cache directory (forces disk; tests).
+            backend: Optional pre-built CacheBackend. If neither is given, the
+                     backend is chosen from settings (CACHE_BACKEND).
         """
         settings = get_settings()
         self.ttl = settings.ANALYSIS_CACHE_TTL
 
-        if cache_dir is None:
-            cache_dir = settings.cache_dir_resolved / "analyses"
-
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        self.cache = Cache(str(cache_dir))
+        if backend is not None:
+            self.backend = backend
+        elif cache_dir is not None:
+            self.backend = DiskCacheBackend(cache_dir)
+        else:
+            self.backend = make_cache_backend("analyses")
 
         logger.info(
-            "AnalysisCache initialized at %s with TTL=%d seconds (%.1f days)",
-            cache_dir,
+            "AnalysisCache initialized with TTL=%d seconds (%.1f days)",
             self.ttl,
             self.ttl / 86400,
         )
@@ -139,7 +143,7 @@ class AnalysisCache:
         cache_key = self._get_cache_key(ticker, valuation_timestamp)
 
         try:
-            cached_data = self.cache.get(cache_key)
+            cached_data = self.backend.get(cache_key)
 
             if cached_data is None:
                 logger.debug("Analysis cache miss for %s", ticker)
@@ -178,7 +182,7 @@ class AnalysisCache:
 
         try:
             cache_data = data.model_dump(mode="json")
-            self.cache.set(cache_key, cache_data, expire=self.ttl)
+            self.backend.set(cache_key, cache_data, self.ttl)
             logger.info(
                 "Cached analysis for %s (TTL: %d seconds)",
                 ticker,
@@ -193,9 +197,9 @@ class AnalysisCache:
         deleted_count = 0
 
         try:
-            for key in list(self.cache):
+            for key in self.backend.iter_keys():
                 if isinstance(key, str) and key.startswith(f"analysis_{ticker}_"):
-                    if self.cache.delete(key):
+                    if self.backend.delete(key):
                         deleted_count += 1
 
             logger.info("Invalidated %d analysis cache entries for %s", deleted_count, ticker)
