@@ -42,9 +42,10 @@ project's own env supplies runtime deps (redis et al.) and the pyproject config.
 2. Read this file + `C:\Users\vorar\.claude\plans\what-should-be-add-hashed-marshmallow.md`
    (the full plan, incl. the later commercialization phase).
 3. Verify the baseline: `cd backend && pytest -q` (105 pass) and `cd ingestion && pytest -q` (18 pass).
-4. Pick #12 or #13 and work it on a branch.
+4. #12 is the only open follow-up — work it on a branch.
 
 ## Done this effort (for reference)
 P0 tooling · P1 valuation tests · P2 CI · P3 AI SDK migration · P4 observability ·
 P5 ingestion pipeline · P6 Postgres+Redis substrate · P7 arq job queue ·
-follow-ups #9 (adapter CAGR), #10 (ruff blocking), #11 (no error leaks).
+follow-ups #9 (adapter CAGR), #10 (ruff blocking), #11 (no error leaks),
+#13 (mypy clean + CI-blocking).
